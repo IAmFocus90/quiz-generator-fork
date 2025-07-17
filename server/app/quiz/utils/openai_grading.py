@@ -1,12 +1,16 @@
 import os
 import openai
 from typing import List
+import json
 
-# Set OpenAI API key from environment variable
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Set the OpenRouter API Key
+openai.api_key = os.getenv("OPENROUTER_API_KEY")  # Make sure it's set in your environment
 
-# Grading function
-async def grade_answers_openai(user_answers: List[dict]) -> List[dict]:
+# Point OpenAI client to OpenRouter
+openai.base_url = "https://openrouter.ai/api/v1"
+
+# Grading function using OpenRouter
+async def grade_answers_openrouter(user_answers: List[dict]) -> List[dict]:
     results = []
 
     for answer in user_answers:
@@ -15,7 +19,7 @@ async def grade_answers_openai(user_answers: List[dict]) -> List[dict]:
         correct_answer = answer.get("correct_answer", "")
         question_type = answer.get("question_type", "open-ended")
 
-        # Prepare the grading prompt
+        # Prompt setup
         system_prompt = (
             "You are an expert educator tasked with grading student responses. "
             "Grade as objectively as possible. Return a JSON with fields: "
@@ -34,7 +38,7 @@ Grade this answer.
 
         try:
             completion = await openai.ChatCompletion.acreate(
-                model="gpt-4",
+                model="mistralai/mixtral-8x7b",  # Or any available model on OpenRouter
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -43,9 +47,6 @@ Grade this answer.
             )
 
             response_text = completion.choices[0].message.content.strip()
-
-            # Try to safely evaluate the JSON response
-            import json
             grading_data = json.loads(response_text)
 
             results.append({

@@ -46,14 +46,21 @@ class QuizQuestion(BaseModel):
 @router.post("/get-questions", response_model=List[QuizQuestion])
 def fetch_questions(request: QuestionRequest):
     try:
-        selected_questions = get_questions(request.question_type, request.num_questions)
+        selected_questions = get_questions(
+            question_type=request.question_type,
+            num_questions=request.num_questions,
+            profession=request.profession or "general knowledge",
+            audience_type=request.audience_type or "students",
+            custom_instruction=request.custom_instruction or "",
+            difficulty_level=request.difficulty_level or "easy"
+        )
 
         return [
             {
                 "question": q["question"],
                 "options": q.get("options", []) if isinstance(q.get("options"), list) else [],
                 "question_type": request.question_type,
-                "answer": str(q.get("answer")) if q.get("answer") is not None else ""
+                "answer": str(q.get("correct_answer")) if q.get("correct_answer") is not None else ""
             }
             for q in selected_questions
         ]
@@ -76,5 +83,5 @@ async def generate_quiz(request: QuizRequest):
         "num_questions": request.num_questions,
         "question_type": request.question_type,
         "difficulty_level": request.difficulty_level,
-        "questions": ["Q1", "Q2", "Q3"],
+        "questions": ["Q1", "Q2", "Q3"],  # Placeholder
     }
