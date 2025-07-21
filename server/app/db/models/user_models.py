@@ -42,3 +42,13 @@ class SeedUser(BaseModel):
         from_attributes = True
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
+
+class UserOut(BaseModel):
+    id: str
+    username: str
+    email: EmailStr
+    is_active: Optional[bool] = True
+    created_at: Optional[str] = None
+
+    class Config:
+        from_attributes = True

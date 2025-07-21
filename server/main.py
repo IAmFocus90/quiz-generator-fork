@@ -2,9 +2,11 @@ from fastapi.responses import StreamingResponse
 from .api import healthcheck
 import logging
 import os
+import jwt
+from redis.asyncio import Redis
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List
-from fastapi import FastAPI, Body, HTTPException, Depends, Query
+from fastapi import FastAPI, Body, HTTPException, Depends, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -12,8 +14,11 @@ from dotenv import load_dotenv
 from .api import healthcheck
 from .api.v1.crud import download_quiz, generate_quiz, get_user_quiz_history
 from .app.db.routes import router as db_router
-from .app.db.core.connection import startUp
+from .app.db.core.connection import startUp, database
+from motor.motor_asyncio import AsyncIOMotorCollection
+from .app.db.core.connection import startUp, get_users_collection, get_quizzes_collection, get_blacklisted_tokens_collection
 from server.app.quiz.routers.quiz import router as quiz_router
+from server.app.auth.routes import router as auth_router
 from .schemas.model import UserModel, LoginRequestModel, LoginResponseModel
 from .schemas.query import (
     GenerateQuizQuery,
@@ -30,16 +35,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await startUp()
-    yield
 load_dotenv()
 
 origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 
-app = FastAPI(lifespan=lifespan)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await startUp()
+    redis = Redis.from_url("redis://localhost:6379", decode_responses=True)
+    app.state.redis = redis
 
+    app.state.users_collection = get_users_collection()
+    app.state.quizzes_collection = get_quizzes_collection()
+    app.state.blacklisted_tokens_collection = get_blacklisted_tokens_collection()
+
+    yield
+
+    get_users_collection().database.client.close()
+    await redis.close()
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,7 +71,6 @@ app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 
 app.database = database
 
-#mock_db: List[UserModel] = []
 
 @app.get("/api")
 def read_root():
@@ -65,9 +79,12 @@ def read_root():
 
 load_dotenv()  
 
-@app.get("/users/", response_model=List[UserModel])
-def list_users():
-    return mock_db
+
+@app.get("/users")
+async def get_users(request: Request):
+    users_collection = request.app.state.users_collection
+    users = await users_collection.find().to_list(length=100)
+    return users
 
 @app.post("/generate-quiz")
 async def generate_quiz_handler(query: GenerateQuizQuery = Body(...)) -> Dict[str, Any]:
