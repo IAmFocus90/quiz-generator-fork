@@ -45,6 +45,7 @@ services:
       - fromService:
           type: redis
           name: quiz-redis
+          property: connectionString
         key: REDIS_URL
       - key: MONGO_URI
         value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
