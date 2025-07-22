@@ -32,35 +32,35 @@ services:
     ipAllowList: [] # empty means open to all your services
     plan: free
 
-  - type: worker
-    name: celery-worker
-    env: python
-    buildCommand: |
-      cd server && \
-      pip install --upgrade pip && \
-      pip install pipenv && \
-      pipenv install --system --deploy
-    startCommand: celery -A server.celery_config.celery_app worker --loglevel=info --concurrency=1
-    envVars:
-      - fromService:
-          type: redis
-          name: quiz-redis
-          property: connectionString
-        key: REDIS_URL
-      - key: MONGO_URI
-        value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
-      - key: SENDER_EMAIL
-        sync: false
-      - key: SENDER_PASSWORD
-        sync: false
-      - key: EMAIL_HOST
-        value: smtp.yourprovider.com
-      - key: EMAIL_PORT
-        value: "587"
-      - key: ALLOWED_ORIGINS
-        sync: false
-      - key: SHARE_URL
-        value: https://quiz-generator-2.vercel.app
+  # - type: worker
+  #   name: celery-worker
+  #   env: python
+  #   buildCommand: |
+  #     cd server && \
+  #     pip install --upgrade pip && \
+  #     pip install pipenv && \
+  #     pipenv install --system --deploy
+  #   startCommand: celery -A server.celery_config.celery_app worker --loglevel=info --concurrency=1
+  #   envVars:
+  #     - fromService:
+  #         type: redis
+  #         name: quiz-redis
+  #         property: connectionString
+  #       key: REDIS_URL
+  #     - key: MONGO_URI
+  #       value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
+  #     - key: SENDER_EMAIL
+  #       sync: false
+  #     - key: SENDER_PASSWORD
+  #       sync: false
+  #     - key: EMAIL_HOST
+  #       value: smtp.yourprovider.com
+  #     - key: EMAIL_PORT
+  #       value: "587"
+  #     - key: ALLOWED_ORIGINS
+  #       sync: false
+  #     - key: SHARE_URL
+  #       value: https://quiz-generator-2.vercel.app
 
 
 
