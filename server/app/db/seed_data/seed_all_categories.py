@@ -1,77 +1,73 @@
-# seed_all_categories.py
-
-import asyncio
 import os
-from datetime import timezone
-from datetime import datetime
-from pathlib import Path
-from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
+import asyncio
 import importlib.util
+from motor.motor_asyncio import AsyncIOMotorClient
+from dotenv import load_dotenv
+from pathlib import Path
 
-# ─── Load environment ──────────────────────────────────────────────
-load_dotenv()
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-client = AsyncIOMotorClient(MONGO_URI)
-db = client["quizApp_db"]
-collection = db["quizzes_category"]
+env_path = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=env_path)
 
-# ─── Load Python seed files dynamically ────────────────────────────
-def load_py_seed_data(file_path: str):
-    if not Path(file_path).exists():
-        print(f"⚠️ File not found: {file_path}")
-        return []
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+DATABASE_NAME = os.getenv("MONGO_DB", "quiz_db")
+COLLECTION_NAME = os.getenv("MONGO_COLLECTION", "quizzes")
 
-    module_name = Path(file_path).stem
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DATABASE_NAME]
+quiz_collection = db[COLLECTION_NAME]
 
-    return getattr(module, "data", [])
+BASE_PATH = os.path.dirname(__file__)
+CATEGORIES_PATH = os.path.join(BASE_PATH, "categories")
 
-# ─── Quiz Structure ────────────────────────────────────────────────
-structure = {
-    "Art & Literature": ["Famous Paintings", "Authors & Books", "Literary Devices", "Art Movements", "Poetry"],
-    "English Language": ["Grammar", "Vocabulary", "Synonyms & Antonyms", "Idioms & Phrases", "Spelling", "Reading Comprehension"],
-    "Culture & Religion": ["Religions of the World", "Festivals", "Traditions", "Languages"],
-    "Brain Teasers": ["Riddles", "Logic Puzzles", "Lateral Thinking", "Pattern Recognition"],
-}
+async def seed_subcategory(category, subcategory):
+    print(f"🔍 Processing {category}/{subcategory}")
 
-QUESTION_TYPES = ["multiple choice", "true or false", "open ended", "short answer"]
-QUESTIONS_PER_TYPE = 10  # Total 40 per subcategory
-
-# ─── Seeder Function ───────────────────────────────────────────────
-async def seed_subcategory(cat: str, subcat: str):
-    seed_path = Path(cat.replace(" ", "_")) / subcat.replace(" ", "_") / "questions.py"
-    seed_path = seed_path.resolve()
-
-    data = load_py_seed_data(str(seed_path))
-    if not data:
-        print(f"⚠️ No data loaded from {seed_path}")
+    # Skip if already seeded
+    existing = await quiz_collection.count_documents({
+        "category": category,
+        "subcategory": subcategory
+    })
+    if existing > 0:
+        print(f"⏭️  Already seeded: {category}/{subcategory} — Skipping")
         return
 
-    for qtype in QUESTION_TYPES:
-        filtered = [q for q in data if q["question_type"] == qtype]
-        selected = filtered[:QUESTIONS_PER_TYPE]
+    # Dynamically load the question data
+    module_path = os.path.join(CATEGORIES_PATH, category, subcategory, "questions.py")
+    if not os.path.exists(module_path):
+        print(f"⚠️  File not found: {module_path}")
+        return
 
-        if len(selected) < QUESTIONS_PER_TYPE:
-            print(f"⚠️ Not enough {qtype} questions in {cat}/{subcat}. Only {len(selected)} found.")
+    spec = importlib.util.spec_from_file_location("questions", module_path)
+    questions_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(questions_module)
 
-        doc = {
-            "category": cat,
-            "subcategory": subcat,
-            "question_type": qtype,
-            "questions": selected,
-            "created_at": datetime.now(timezone.utc)
-        }
+    if not hasattr(questions_module, "data") or not isinstance(questions_module.data, list):
+        print(f"⚠️  'data' variable missing or invalid in {module_path}")
+        return
 
-        await collection.insert_one(doc)
-        print(f"✅ Inserted {len(selected)} {qtype} questions for {cat}/{subcat}")
+    data = questions_module.data
 
-# ─── Main Runner ───────────────────────────────────────────────────
+    for q in data:
+        q["category"] = category
+        q["subcategory"] = subcategory
+
+    if data:
+        await quiz_collection.insert_many(data)
+        print(f"✅ Seeded {len(data)} questions in {category}/{subcategory}")
+    else:
+        print(f"⚠️  No questions found in {category}/{subcategory}")
+
 async def main():
-    for category, subcategories in structure.items():
-        for subcategory in subcategories:
+    for category in os.listdir(CATEGORIES_PATH):
+        category_path = os.path.join(CATEGORIES_PATH, category)
+        if not os.path.isdir(category_path):
+            continue
+
+        for subcategory in os.listdir(category_path):
+            subcategory_path = os.path.join(category_path, subcategory)
+            if not os.path.isdir(subcategory_path):
+                continue
+
             await seed_subcategory(category, subcategory)
 
 if __name__ == "__main__":
