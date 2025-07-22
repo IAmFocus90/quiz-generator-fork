@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 load_dotenv()  
 
 share_url = os.getenv("SHARE_URL")
+if not share_url:
+    raise EnvironmentError("[Config Error] 'SHARE_URL' is not defined in environment")
+
 router = APIRouter()
 
 
