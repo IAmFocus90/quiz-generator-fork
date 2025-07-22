@@ -9,6 +9,77 @@ services:
       pipenv install --system --deploy
     startCommand: uvicorn server.main:app --host 0.0.0.0 --port 10000
     envVars:
+      - key: ALLOWED_ORIGINS
+        sync: false
       - key: MONGO_URI
         value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
+      - key: REDIS_URL
+        value: redis://default:<YOUR_REDIS_PASSWORD>@<redis-service-name>:6379/0
+      - key: SENDER_EMAIL
+        sync: false
+      - key: SENDER_PASSWORD
+        sync: false
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: SHARE_URL
+        value: https://quiz-generator-2.vercel.app
     plan: free
+
+  - type: redis
+    name: quiz-redis
+    ipAllowList: [] # empty means open to all your services
+    plan: free
+
+  - type: worker
+    name: celery-worker
+    env: python
+    buildCommand: |
+      cd server && \
+      pip install --upgrade pip && \
+      pip install pipenv && \
+      pipenv install --system --deploy
+    startCommand: celery -A server.celery_config.celery_app worker --loglevel=info --concurrency=1
+    envVars:
+      - fromService:
+          type: redis
+          name: quiz-redis
+        key: REDIS_URL
+      - key: MONGO_URI
+        value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
+      - key: SENDER_EMAIL
+        sync: false
+      - key: SENDER_PASSWORD
+        sync: false
+      - key: EMAIL_HOST
+        value: smtp.yourprovider.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: SHARE_URL
+        value: https://quiz-generator-2.vercel.app
+
+
+
+
+
+
+
+
+
+# services:
+#   - type: web
+#     name: fastapi-app
+#     env: python
+#     buildCommand: |
+#       cd server && \
+#       pip install --upgrade pip && \
+#       pip install pipenv && \
+#       pipenv install --system --deploy
+#     startCommand: uvicorn server.main:app --host 0.0.0.0 --port 10000
+#     envVars:
+#       - key: MONGO_URI
+#         value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
+#     plan: free
