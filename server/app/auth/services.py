@@ -44,13 +44,13 @@ async def register_user_service(user: UserRegisterSchema) -> UserResponseSchema:
     if not created_user:
         raise HTTPException(status_code=500, detail="User registration failed")
    
-    redis_client = get_redis_client()
+    redis_client = await get_redis_client()
     otp = generate_otp()
     token = generate_verification_token(user.email)
     
 
-    redis_client.setex(f"otp:{user.email}", timedelta(minutes=10), otp)
-    redis_client.setex(f"token:{user.email}", timedelta(minutes=30), token)
+    await redis_client.setex(f"otp:{user.email}", timedelta(minutes=10), otp)
+    await redis_client.setex(f"token:{user.email}", timedelta(minutes=30), token)
 
     send_otp_email(user.email, otp, token, mode="register")
 
