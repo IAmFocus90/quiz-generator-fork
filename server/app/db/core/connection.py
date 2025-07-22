@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()   
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 import os
 from datetime import datetime
@@ -12,6 +15,7 @@ database = client["quizApp_db"]
 
 quizzes_collection = database["quizzes"]
 users_collection = database["users"]
+quiz_history_collection = database["quiz_history"]
 blacklisted_tokens_collection = database["blacklisted_tokens"]
 
 async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):

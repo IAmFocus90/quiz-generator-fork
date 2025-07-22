@@ -15,3 +15,8 @@ pydantic-settings = "*"
 [dev-packages]
 pytest = "*"
 pytest-asyncio = "*"
+testcontainers = "*"
+pymongo = "*"
+pytest = "*"
+pytest-asyncio = "*"
+fastapi = "*"

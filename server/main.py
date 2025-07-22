@@ -7,6 +7,8 @@ from redis.asyncio import Redis
 from contextlib import asynccontextmanager
 from typing import Dict, Any, List
 from fastapi import FastAPI, Body, HTTPException, Depends, Query, Request
+import redis
+from fastapi import FastAPI, Body, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -19,6 +21,10 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 from .app.db.core.connection import startUp, get_users_collection, get_quizzes_collection, get_blacklisted_tokens_collection
 from server.app.quiz.routers.quiz import router as quiz_router
 from server.app.auth.routes import router as auth_router
+from server.app.db.routes.save_quiz_history import router as save_quiz_router
+from server.app.db.routes.get_quiz_history import router as get_quiz_history_router
+from server.app.db.core.connection import startUp
+from server.app.quiz.routers.quiz import router as quiz_router
 from .schemas.model import UserModel, LoginRequestModel, LoginResponseModel
 from .schemas.query import (
     GenerateQuizQuery,
@@ -100,3 +106,15 @@ def get_user_quiz_history_handler(query: GetUserQuizHistoryQuery = Body(...)) ->
 async def download_quiz_handler(query: DownloadQuizQuery = Depends()) -> StreamingResponse:
     logger.info("Received query: %s", query)
     return download_quiz(query.format, query.question_type, query.num_question)
+
+app.include_router(save_quiz_router, prefix="/api")
+app.include_router(get_quiz_history_router, prefix="/api")
+
+
+
+
+@app.get("/ping-redis")
+def ping_redis():
+    r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    return {"pong": r.ping()}
+
