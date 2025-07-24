@@ -1,6 +1,6 @@
 data = [
     # 🟩 Multiple Choice (10)
-    [
+    
         {
             "question": "Who holds the world record for the fastest 100-meter sprint?",
             "options": ["Usain Bolt", "Tyson Gay", "Yohan Blake", "Justin Gatlin"],
@@ -51,10 +51,10 @@ data = [
             "options": ["Titanic", "Avengers: Endgame", "Avatar", "The Lion King"],
             "answer": "Avatar",
         },
-    ],
+    
 
     # 🟦 True or False (10)
-    [
+    
         {"question": "Usain Bolt ran the 100m in under 9.6 seconds. — True", "answer": "True"},
         {"question": "The Pacific Ocean is the largest ocean in the world. — True", "answer": "True"},
         {"question": "Venus is the hottest planet in our solar system. — True", "answer": "True"},
@@ -65,10 +65,10 @@ data = [
         {"question": "The Sahara Desert is the largest desert in the world. — False", "answer": "False"},  # Antarctica is
         {"question": "The Great Wall of China is visible from space. — False", "answer": "False"},
         {"question": "Cristiano Ronaldo has scored more than 800 career goals. — True", "answer": "True"},
-    ],
+    
 
     # 🟨 Open Ended (10)
-    [
+    
         {"question": "Who is the fastest man in the world?", "answer": "Usain Bolt"},
         {"question": "What is the tallest building in the world?", "answer": "Burj Khalifa"},
         {"question": "Which swimmer holds the most Olympic gold medals?", "answer": "Michael Phelps"},
@@ -79,10 +79,10 @@ data = [
         {"question": "Which country holds the record for most Olympic medals?", "answer": "United States"},
         {"question": "Who is the most-followed person on Instagram (as of 2024)?", "answer": "Cristiano Ronaldo"},
         {"question": "What is the deepest point in the ocean?", "answer": "Mariana Trench"},
-    ],
+    
 
     # 🟥 Short Answers (10)
-    [
+
         {"question": "Who holds the 100m sprint record?", "answer": "Usain Bolt"},
         {"question": "What is the tallest mountain?", "answer": "Mount Everest"},
         {"question": "Most Olympic gold medals?", "answer": "Michael Phelps"},
@@ -93,6 +93,6 @@ data = [
         {"question": "Largest desert?", "answer": "Antarctica"},
         {"question": "Most followed on Instagram?", "answer": "Cristiano Ronaldo"},
         {"question": "River considered longest?", "answer": "Nile"},
-    ],
+    
 ]
 

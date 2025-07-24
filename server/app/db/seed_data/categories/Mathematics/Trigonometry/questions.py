@@ -1,6 +1,6 @@
 data = [
     # 🟩 Multiple Choice (10)
-    [
+    
         {
             "question": "What is sin(90°)?",
             "options": ["1", "0", "0.5", "√3/2"],
@@ -51,10 +51,10 @@ data = [
             "options": ["tan(θ) = sin(θ)/cos(θ)", "tan(θ) = cos(θ)/sin(θ)", "sin(θ) = cos(θ)", "cos²(θ) = 1 - sin(θ)"],
             "answer": "tan(θ) = sin(θ)/cos(θ)",
         },
-    ],
+    
 
     # 🟦 True or False (10)
-    [
+    
         {"question": "The sine of 90° is 1.", "answer": "True"},
         {"question": "Cosine of 0° is 0.", "answer": "False"},
         {"question": "tan(θ) = sin(θ)/cos(θ)", "answer": "True"},
@@ -65,10 +65,10 @@ data = [
         {"question": "cotangent is the reciprocal of tangent.", "answer": "True"},
         {"question": "The angle 270° lies in quadrant III.", "answer": "False"},
         {"question": "The secant of 0° is 1.", "answer": "True"},
-    ],
+    
 
     # 🟨 Open Ended (10)
-    [
+    
         {"question": "What is the value of sin(0°)?", "answer": "0"},
         {"question": "What is the reciprocal of sine?", "answer": "cosecant"},
         {"question": "Write the identity involving sine and cosine that equals 1.", "answer": "sin²(θ) + cos²(θ) = 1"},
@@ -79,10 +79,10 @@ data = [
         {"question": "What is the sine of 30°?", "answer": "0.5"},
         {"question": "Name one angle where cos(θ) = 0.", "answer": "90°"},
         {"question": "What is the range of the sine function?", "answer": "[-1, 1]"},
-    ],
+    
 
     # 🟥 Short Answer (10)
-    [
+    
         {"question": "What is the sine of 180°?", "answer": "0"},
         {"question": "What is the value of tan(90°)?", "answer": "undefined"},
         {"question": "cos(90°) equals?", "answer": "0"},
@@ -93,6 +93,6 @@ data = [
         {"question": "Which function is opposite over hypotenuse?", "answer": "sine"},
         {"question": "What is the cotangent of 45°?", "answer": "1"},
         {"question": "What is the period of sin(θ)?", "answer": "360° or 2π"},
-    ],
+    
 ]
 

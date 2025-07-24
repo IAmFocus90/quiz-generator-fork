@@ -5,7 +5,6 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 import os
 from pathlib import Path
 
-
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 
 client = AsyncIOMotorClient(MONGO_URI)
@@ -33,4 +32,6 @@ def get_users_collection() -> AsyncIOMotorCollection:
 
 def get_quizzes_collection() -> AsyncIOMotorCollection:
     return quizzes_collection
+
+
 

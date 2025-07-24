@@ -1,6 +1,6 @@
 data = [
     # 🟩 Multiple Choice (10)
-    {
+    
             {
                 "question": "Who is the creator of the animated series Rick and Morty?",
                 "options": ["Seth MacFarlane", "Justin Roiland", "Matt Groening", "Trey Parker"],
@@ -51,10 +51,10 @@ data = [
                 "options": ["Eddie Murphy", "Mike Myers", "Jim Carrey", "Adam Sandler"],
                 "answer": "Mike Myers",
             },
-    },
+    
 
     # 🟦 True or False (10)
-    {
+    
             {"question": "Tom and Jerry was originally created by Hanna-Barbera.", "answer": "True"},
             {"question": "BoJack Horseman is a series about a retired racehorse.", "answer": "False"},
             {"question": "Adventure Time features a human named Finn and a dog named Jake.", "answer": "True"},
@@ -65,10 +65,10 @@ data = [
             {"question": "The Iron Giant was released in the year 2000.", "answer": "False"},
             {"question": "Phineas and Ferb have a pet platypus.", "answer": "True"},
             {"question": "Despicable Me was the first appearance of the Minions.", "answer": "True"},
-    },
+    
 
     # 🟨 Open Ended (10)
-    {
+    
 
             {"question": "What is the name of the yellow character who lives in a pineapple under the sea?", "answer": "SpongeBob SquarePants"},
             {"question": "Which character is known for saying 'What’s up, Doc?'", "answer": "Bugs Bunny"},
@@ -80,10 +80,10 @@ data = [
             {"question": "What is the full name of the boy in How to Train Your Dragon?", "answer": "Hiccup Horrendous Haddock III"},
             {"question": "What studio created Shrek?", "answer": "DreamWorks Animation"},
             {"question": "What magical object does Aladdin use to fly?", "answer": "Magic carpet"},
-    },
+    
 
     # 🟥 Short Answers (10)
-    {
+    
             {"question": "What color is Marge Simpson’s hair?", "answer": "Blue"},
             {"question": "What is the name of the fish in Finding Nemo?", "answer": "Nemo"},
             {"question": "Who is Mickey Mouse’s dog?", "answer": "Pluto"},
@@ -94,5 +94,5 @@ data = [
             {"question": "What does the acronym S.H.I.E.L.D. stand for?", "answer": "Strategic Homeland Intervention, Enforcement and Logistics Division"},
             {"question": "Name the pink starfish in SpongeBob.", "answer": "Patrick"},
             {"question": "What does Moana set out to find?", "answer": "Heart of Te Fiti"},
-    },
+    
 ]

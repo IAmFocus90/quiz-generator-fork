@@ -1,6 +1,6 @@
 data = [
     # 🟩 Multiple Choice (10)
-    [
+    
         {
             "question": "If a car travels 60 miles in 1.5 hours, what is its average speed?",
             "options": ["40 mph", "45 mph", "60 mph", "90 mph"],
@@ -51,10 +51,10 @@ data = [
             "options": ["$480", "$520", "$460", "$500"],
             "answer": "$480",
         },
-    ],
+    
 
     # 🟦 True or False (10)
-    [
+    
         {"question": "If you double the sides of a square, its area becomes four times larger.", "answer": "True"},
         {"question": "A 10% discount on $200 is $25.", "answer": "False"},
         {"question": "Speed is calculated by dividing distance by time.", "answer": "True"},
@@ -65,10 +65,10 @@ data = [
         {"question": "If a recipe is doubled, the ingredients are halved.", "answer": "False"},
         {"question": "A 50% increase means the new value is 1.5 times the original.", "answer": "True"},
         {"question": "Distance equals speed multiplied by time.", "answer": "True"},
-    ],
+    
 
     # 🟨 Open Ended (10)
-    [
+    
         {"question": "If a bike travels at 15 km/h for 3 hours, how far does it go?", "answer": "45 km"},
         {"question": "How many minutes are in 3 hours?", "answer": "180"},
         {"question": "If you buy 3 books at $7 each, what is the total cost?", "answer": "21"},
@@ -79,10 +79,10 @@ data = [
         {"question": "What is the perimeter of a rectangle with length 8 m and width 3 m?", "answer": "22 m"},
         {"question": "If a tank holds 500 liters and is filled at 50 liters per minute, how long to fill?", "answer": "10 minutes"},
         {"question": "If you save $15 weekly, how much after 10 weeks?", "answer": "150"},
-    ],
+    
 
     # 🟥 Short Answer (10)
-    [
+    
         {"question": "How many seconds are in 1 hour?", "answer": "3600"},
         {"question": "What is 20% of 150?", "answer": "30"},
         {"question": "If a car travels 100 km in 2 hours, what is its speed?", "answer": "50 km/h"},
@@ -93,6 +93,6 @@ data = [
         {"question": "How many months are in a year?", "answer": "12"},
         {"question": "If a book costs $12 and you buy 3, what is total cost?", "answer": "36"},
         {"question": "How many hours in 3 days?", "answer": "72"},
-    ],
+    
 ]
 

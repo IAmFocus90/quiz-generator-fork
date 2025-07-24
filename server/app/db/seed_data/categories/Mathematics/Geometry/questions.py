@@ -1,6 +1,6 @@
 data = [
     # 🟩 Multiple Choice (10)
-    [
+    
         {
             "question": "What is the sum of the angles in a triangle?",
             "options": ["180°", "90°", "360°", "270°"],
@@ -51,10 +51,10 @@ data = [
             "options": ["Decagon", "Nonagon", "Octagon", "Heptagon"],
             "answer": "Decagon",
         },
-    ],
+    
 
     # 🟦 True or False (10)
-    [
+    
         {"question": "A square has four equal sides and four right angles.", "answer": "True"},
         {"question": "The radius is half the diameter of a circle.", "answer": "True"},
         {"question": "A triangle can have two right angles.", "answer": "False"},
@@ -65,10 +65,10 @@ data = [
         {"question": "All sides of a parallelogram are equal.", "answer": "False"},
         {"question": "A rhombus is a type of parallelogram.", "answer": "True"},
         {"question": "A line has one endpoint.", "answer": "False"},
-    ],
+    
 
     # 🟨 Open Ended (10)
-    [
+    
         {"question": "What is the formula for the area of a triangle?", "answer": "0.5 × base × height"},
         {"question": "Name a shape that has 4 equal sides and no right angles.", "answer": "Rhombus"},
         {"question": "What is the length of the diagonal in a square of side 1?", "answer": "√2"},
@@ -79,10 +79,10 @@ data = [
         {"question": "What is the volume of a sphere with radius r?", "answer": "(4/3)πr³"},
         {"question": "How many faces does a cube have?", "answer": "6"},
         {"question": "What is the formula for the area of a square?", "answer": "side²"},
-    ],
+    
 
     # 🟥 Short Answer (10)
-    [
+    
         {"question": "How many sides does a pentagon have?", "answer": "5"},
         {"question": "What shape has exactly one pair of parallel sides?", "answer": "Trapezoid"},
         {"question": "How many degrees in a full circle?", "answer": "360"},
@@ -93,6 +93,6 @@ data = [
         {"question": "What is the height of a triangle with area 10 and base 4?", "answer": "5"},
         {"question": "What is the radius of a circle with diameter 10?", "answer": "5"},
         {"question": "What do you call a triangle with one angle over 90°?", "answer": "Obtuse triangle"},
-    ],
+    
 ]
 

@@ -1,6 +1,6 @@
 data = [
     # 🟩 Multiple Choice (10)
-    [
+    
         {
             "question": "What is the derivative of x²?",
             "options": ["2x", "x", "x²", "1"],
@@ -51,10 +51,10 @@ data = [
             "options": ["∫ₐᵇ f(x) dx", "f(b) - f(a)", "f'(x)", "lim x→a f(x)"],
             "answer": "∫ₐᵇ f(x) dx",
         },
-    ],
+    
 
     # 🟦 True or False (10)
-    [
+    
         {"question": "The derivative of a constant is zero.", "answer": "True"},
         {"question": "The integral of x⁴ is x³/3 + C.", "answer": "False"},
         {"question": "The limit of 1/x as x approaches 0 is undefined.", "answer": "True"},
@@ -65,10 +65,10 @@ data = [
         {"question": "The derivative of x³ is 2x.", "answer": "False"},
         {"question": "The chain rule is used for composite functions.", "answer": "True"},
         {"question": "A function must be continuous to be differentiable.", "answer": "True"},
-    ],
+    
 
     # 🟨 Open Ended (10)
-    [
+    
         {"question": "What is the derivative of x³?", "answer": "3x²"},
         {"question": "What is the integral of x dx?", "answer": "x²/2 + C"},
         {"question": "State the product rule.", "answer": "f'(x)g(x) + f(x)g'(x)"},
@@ -79,10 +79,10 @@ data = [
         {"question": "What is the integral of sin(x) dx?", "answer": "-cos(x) + C"},
         {"question": "What is the second derivative of x²?", "answer": "2"},
         {"question": "Find the derivative of tan(x).", "answer": "sec²(x)"},
-    ],
+    
 
     # 🟥 Short Answer (10)
-    [
+    
         {"question": "What is the derivative of x⁴?", "answer": "4x³"},
         {"question": "Find ∫ x² dx.", "answer": "x³/3 + C"},
         {"question": "What is the chain rule formula?", "answer": "f'(g(x))g'(x)"},
@@ -93,6 +93,6 @@ data = [
         {"question": "What is the derivative of √x?", "answer": "1/(2√x)"},
         {"question": "Find ∫ e^x dx.", "answer": "e^x + C"},
         {"question": "What is the second derivative of x⁴?", "answer": "12x²"},
-    ],
+    
 ]
 
