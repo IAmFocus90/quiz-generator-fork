@@ -12,9 +12,9 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false
       - key: MONGO_URI
-        value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
+        sync: false
       - key: REDIS_URL
-        value: rediss://:<YOUR_UPSTASH_PASSWORD>@<UPSTASH_HOST>:<PORT>
+        sync: false
       - key: SENDER_EMAIL
         sync: false
       - key: SENDER_PASSWORD
@@ -38,9 +38,9 @@ services:
     startCommand: celery -A server.celery_config.celery_app worker --loglevel=info --concurrency=1
     envVars:
       - key: REDIS_URL
-        value: rediss://:<YOUR_UPSTASH_PASSWORD>@<UPSTASH_HOST>:<PORT>
+        sync: false
       - key: MONGO_URI
-        value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
+        sync: false
       - key: SENDER_EMAIL
         sync: false
       - key: SENDER_PASSWORD
