@@ -61,6 +61,7 @@ services:
         sync: false
       - key: SHARE_URL
         value: https://quiz-generator-2.vercel.app
+    plan: free
 
 
 
