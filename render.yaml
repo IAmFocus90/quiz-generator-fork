@@ -14,7 +14,7 @@ services:
       - key: MONGO_URI
         value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
       - key: REDIS_URL
-        value: redis://default:<YOUR_REDIS_PASSWORD>@<redis-service-name>:6379/0
+        value: rediss://:<YOUR_UPSTASH_PASSWORD>@<UPSTASH_HOST>:<PORT>
       - key: SENDER_EMAIL
         sync: false
       - key: SENDER_PASSWORD
@@ -27,11 +27,6 @@ services:
         value: https://quiz-generator-2.vercel.app
     plan: free
 
-  # - type: redis
-  #   name: quiz-redis
-  #   ipAllowList: [] # empty means open to all your services
-  #   plan: free
-
   - type: worker
     name: celery-worker
     env: python
@@ -42,11 +37,8 @@ services:
       pipenv install --system --deploy
     startCommand: celery -A server.celery_config.celery_app worker --loglevel=info --concurrency=1
     envVars:
-      - fromService:
-          type: redis
-          name: quiz-redis
-          property: connectionString
-        key: REDIS_URL
+      - key: REDIS_URL
+        value: rediss://:<YOUR_UPSTASH_PASSWORD>@<UPSTASH_HOST>:<PORT>
       - key: MONGO_URI
         value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
       - key: SENDER_EMAIL
@@ -54,7 +46,7 @@ services:
       - key: SENDER_PASSWORD
         sync: false
       - key: EMAIL_HOST
-        value: smtp.yourprovider.com
+        value: smtp.gmail.com
       - key: EMAIL_PORT
         value: "587"
       - key: ALLOWED_ORIGINS
@@ -62,7 +54,6 @@ services:
       - key: SHARE_URL
         value: https://quiz-generator-2.vercel.app
     plan: free
-
 
 
 
