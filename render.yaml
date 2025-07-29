@@ -7,8 +7,21 @@ services:
       pip install --upgrade pip && \
       pip install pipenv && \
       pipenv install --system --deploy
-    startCommand: uvicorn server.main:app --host 0.0.0.0 --port 10000
+    startCommand: bash server/start_server_and_celery.sh
     envVars:
+      - key: REDIS_URL
+        sync: false
+      - key: SENDER_EMAIL
+        sync: false
+      - key: SENDER_PASSWORD
+        sync: false
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
       - key: MONGO_URI
-        value: "mongodb+srv://admin:<password>@cluster0.xxxxx.mongodb.net/mydatabase?retryWrites=true&w=majority"
+        sync: false
+      - key: SHARE_URL
+        value: https://quiz-generator-2.vercel.app
     plan: free
+
