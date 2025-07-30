@@ -26,38 +26,6 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     users_collection = Depends(get_users_collection),
     blacklist_collection = Depends(get_blacklisted_tokens_collection)
-) -> Dict:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-    )
-
-    try:
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-        user_id: str = payload.get("sub")
-        jti: str = payload.get("jti")  
-        if user_id is None or jti is None:
-            raise credentials_exception
-    except (ExpiredSignatureError, InvalidTokenError, DecodeError):
-        raise credentials_exception
-
-    blacklisted = await blacklist_collection.find_one({"jti": jti})
-    if blacklisted:
-        if blacklisted.get("expires_at", datetime.now(timezone.utc)) > datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has been revoked"
-            )
-    user = await users_collection.find_one({"_id": ObjectId(user_id)})
-    if user is None:
-        raise credentials_exception
-
-    return user
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    users_collection = Depends(get_users_collection),
-    blacklist_collection = Depends(get_blacklisted_tokens_collection)
 ) -> UserOut:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

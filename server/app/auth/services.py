@@ -11,12 +11,13 @@ from jwt.exceptions import (
 )
 import os
 from server.email_utils import send_otp_email
+from server.tasks import send_otp_task, send_password_reset_email
 from fastapi.security import OAuth2PasswordBearer
 import redis
 from server.app.db.core.connection import users_collection, blacklisted_tokens_collection, get_blacklisted_tokens_collection
 from motor.motor_asyncio import AsyncIOMotorCollection
 from server.app.db.crud.user_crud import create_user, get_user_by_email
-from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, CreateUserRequest, PasswordResetRequest, PasswordResetResponse, RequestPasswordReset, MessageResponse
+from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, CreateUserRequest, PasswordResetRequest, PasswordResetResponse, RequestPasswordReset, ResendVerificationRequest, MessageResponse
 from .utils import verify_password, create_access_token, generate_otp, generate_verification_token, decode_verification_token
 from server.app.db.core.redis import get_redis_client
 from passlib.context import CryptContext
@@ -52,7 +53,7 @@ async def register_user_service(user: UserRegisterSchema) -> UserResponseSchema:
     await redis_client.setex(f"otp:{user.email}", timedelta(minutes=10), otp)
     await redis_client.setex(f"token:{user.email}", timedelta(minutes=30), token)
 
-    send_otp_email(user.email, otp, token, mode="register")
+    send_otp_task.delay(user.email, otp, token, mode="register")
 
     return UserResponseSchema(
         id=created_user.id,
@@ -65,6 +66,26 @@ async def register_user_service(user: UserRegisterSchema) -> UserResponseSchema:
         is_verified=created_user.is_verified,
         role=created_user.role
     )
+
+async def resend_verification_email_service(email: str) -> MessageResponse:
+    user_data = await users_collection.find_one({"email": email})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user_data.get("is_verified", False):
+        raise HTTPException(status_code=400, detail="Email already verified")
+
+    redis_client = await get_redis_client()
+
+    otp = generate_otp()
+    token = generate_verification_token(email)
+
+    await redis_client.setex(f"otp:{email}", timedelta(minutes=10), otp)
+    await redis_client.setex(f"token:{email}", timedelta(minutes=30), token)
+
+    send_otp_task.delay(email, otp, token, mode="register")
+
+    return MessageResponse(message="Verification email resent successfully")
 
 async def verify_otp_service(email: str,
     otp: str,
@@ -160,7 +181,7 @@ async def request_password_reset_service(request: RequestPasswordReset):
     await redis_client.setex(f"otp:{request.email}", 300, otp)
     await redis_client.setex(f"token:{request.email}", 1800, token)
 
-    send_otp_email(request.email, otp, token, mode="reset")
+    send_password_reset_email.delay(request.email, otp, token)
     return message
 
 async def reset_password_service(request: PasswordResetRequest):
