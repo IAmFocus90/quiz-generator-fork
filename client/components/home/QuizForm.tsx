@@ -49,6 +49,9 @@ export default function QuizForm() {
         questionType,
         numQuestions: numQuestions.toString(),
         profession,
+        customInstruction, // 👈 Add this
+        audienceType,
+        difficultyLevel,
         source, // 👈 Add the source to query params
       }).toString();
 
