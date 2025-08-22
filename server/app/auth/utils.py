@@ -46,21 +46,6 @@ def verify_password(plain_password, hashed_password):
 
 def get_password_hash(password):
     return pwd_context.hash(password)
-
-# def decode_access_token(token: str) -> dict:
-#     try:
-#         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-#         return payload
-#     except jwt.ExpiredSignatureError:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Token expired"
-#         )
-#     except jwt.InvalidTokenError:
-#         raise HTTPException(
-#             status_code=status.HTTP_401_UNAUTHORIZED,
-#             detail="Invalid token"
-#         )
     
 def decode_token(token: str):
     try:
