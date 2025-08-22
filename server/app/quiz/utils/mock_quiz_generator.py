@@ -41,3 +41,5 @@ def get_mock_questions_by_type(question_type: str, num_questions: int):
         )
 
     return random.sample(questions, num_questions)
+
+

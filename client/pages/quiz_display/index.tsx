@@ -21,17 +21,12 @@ const QuizDisplayPage: React.FC = () => {
   const difficultyLevel = searchParams.get("difficultyLevel") || "easy";
   const audienceType = searchParams.get("audienceType") || "students";
   const customInstruction = searchParams.get("customInstruction") || "";
-  const userId = searchParams.get("userId") || "defaultUserId";
+  const userId = searchParams.get("userId") || "defaultUserId"; // ✅ dummy user until auth works
 
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [userAnswers, setUserAnswers] = useState<(string | number)[]>([]);
   const [isQuizChecked, setIsQuizChecked] = useState<boolean>(false);
   const [quizReport, setQuizReport] = useState<any[]>([]);
-
-  const getAnswerText = (label: string, options: string[]) => {
-    const index = label?.charCodeAt(0) - 65; // Convert "A" → 0, "B" → 1, etc.
-    return options?.[index] || "";
-  };
 
   useEffect(() => {
     const fetchQuizQuestions = async () => {
@@ -45,7 +40,7 @@ const QuizDisplayPage: React.FC = () => {
       };
 
       try {
-        // 🔹 Try AI first
+        // 🔹 Try AI source first
         const aiResponse = await axios.post(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
           {
@@ -61,12 +56,6 @@ const QuizDisplayPage: React.FC = () => {
 
         setQuizQuestions(questions);
         setUserAnswers(Array(questions.length).fill(""));
-
-        try {
-          await saveQuizToHistory(userId, questionType, questions);
-        } catch (err) {
-          console.error("❌ Failed to save AI quiz history:", err);
-        }
       } catch (error) {
         console.warn("⚠️ AI failed, falling back to mock:", error);
 
@@ -82,12 +71,6 @@ const QuizDisplayPage: React.FC = () => {
           const mockQuestions = mockResponse.data?.questions || [];
           setQuizQuestions(mockQuestions);
           setUserAnswers(Array(mockQuestions.length).fill(""));
-
-          try {
-            await saveQuizToHistory(userId, questionType, mockQuestions);
-          } catch (err) {
-            console.error("❌ Failed to save mock quiz history:", err);
-          }
         } catch (mockErr) {
           console.error("❌ Mock fallback also failed:", mockErr);
         }
@@ -102,7 +85,7 @@ const QuizDisplayPage: React.FC = () => {
     difficultyLevel,
     audienceType,
     customInstruction,
-  ]);
+  ]); // ✅ properly closed useEffect here
 
   const handleAnswerChange = (index: number, answer: string | number) => {
     const updated = [...userAnswers];
@@ -142,6 +125,9 @@ const QuizDisplayPage: React.FC = () => {
 
       setQuizReport(transformed);
       setIsQuizChecked(true);
+
+      // ✅ Save quiz to history only after grading
+      await saveQuizToHistory(userId, questionType, quizQuestions);
     } catch (err) {
       console.error("Error checking answers:", err);
     }
@@ -153,29 +139,29 @@ const QuizDisplayPage: React.FC = () => {
 
       <main className="flex-1 flex justify-center px-4 sm:px-6 md:px-8 py-8">
         <div className="w-full max-w-4xl space-y-10">
+          {/* Quiz Questions Card */}
           <section className="bg-white shadow rounded-xl px-4 sm:px-6 py-6 sm:py-8 border border-gray-200">
             <h1 className="text-xl sm:text-2xl font-bold text-[#0F2654] mb-6">
               {`${questionType.charAt(0).toUpperCase() + questionType.slice(1)} Quiz`}
             </h1>
 
             <div className="space-y-6">
-              {Array.isArray(quizQuestions) &&
-                quizQuestions.map((q, i) => (
-                  <div
-                    key={i}
-                    className="bg-gray-50 p-4 rounded-md border border-gray-200"
-                  >
-                    <h3 className="font-medium text-gray-800 mb-2 text-sm sm:text-base">
-                      {i + 1}. {q.question}
-                    </h3>
-                    <QuizAnswerField
-                      questionType={q.question_type}
-                      index={i}
-                      onAnswerChange={handleAnswerChange}
-                      options={q.options || []}
-                    />
-                  </div>
-                ))}
+              {quizQuestions.map((q, i) => (
+                <div
+                  key={i}
+                  className="bg-gray-50 p-4 rounded-md border border-gray-200"
+                >
+                  <h3 className="font-medium text-gray-800 mb-2 text-sm sm:text-base">
+                    {i + 1}. {q.question}
+                  </h3>
+                  <QuizAnswerField
+                    questionType={q.question_type}
+                    index={i}
+                    onAnswerChange={handleAnswerChange}
+                    options={q.options || []}
+                  />
+                </div>
+              ))}
             </div>
 
             <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-4 sm:space-y-0">
@@ -189,6 +175,7 @@ const QuizDisplayPage: React.FC = () => {
             </div>
           </section>
 
+          {/* Quiz Results Card */}
           {isQuizChecked && (
             <section className="bg-white shadow rounded-xl px-4 sm:px-6 py-6 sm:py-8 border border-gray-200">
               <h2 className="text-xl sm:text-2xl font-bold text-[#0F2654] mb-4">
@@ -209,15 +196,10 @@ const QuizDisplayPage: React.FC = () => {
                       <strong>Question:</strong> {r.question}
                     </p>
                     <p>
-                      <strong>Your Answer:</strong>{" "}
-                      {getAnswerText(r.user_answer, quizQuestions[i]?.options)}
+                      <strong>Your Answer:</strong> {r.user_answer}
                     </p>
                     <p>
-                      <strong>Correct:</strong>{" "}
-                      {getAnswerText(
-                        r.correct_answer,
-                        quizQuestions[i]?.options,
-                      )}
+                      <strong>Correct:</strong> {r.correct_answer}
                     </p>
                     {r.accuracy_percentage && (
                       <p>

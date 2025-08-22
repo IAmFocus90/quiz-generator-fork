@@ -1,7 +1,8 @@
-from difflib import SequenceMatcher
+from rapidfuzz import fuzz
 
-def sequence_matcher_similarity(a, b):
-    return SequenceMatcher(None, str(a), str(b)).ratio() * 100
+def fuzzy_similarity(a, b):
+    """Returns a similarity score (0–100) using fuzzy matching."""
+    return fuzz.token_set_ratio(str(a), str(b))
 
 def grade_mock_answers(user_answers):
     result = []
@@ -14,7 +15,7 @@ def grade_mock_answers(user_answers):
             continue
 
         if question_type == "open-ended":
-            accuracy = sequence_matcher_similarity(user_answer, correct_answer)
+            accuracy = fuzzy_similarity(user_answer, correct_answer)
             is_correct = accuracy >= 50
             result.append({
                 "question": answer.get("question", ""),
@@ -26,7 +27,21 @@ def grade_mock_answers(user_answers):
                 "result": "Correct" if is_correct else "Incorrect"
             })
 
-        elif question_type in ["multichoice", "true-false", "short-answer"]:
+        elif question_type == "short-answer":
+            accuracy = fuzzy_similarity(user_answer, correct_answer)
+            is_correct = accuracy >= 80
+            result.append({
+                "question": answer.get("question", ""),
+                "user_answer": user_answer,
+                "correct_answer": correct_answer,
+                "question_type": question_type,
+                "accuracy_percentage": accuracy,
+                "is_correct": is_correct,
+                "result": "Correct" if is_correct else "Incorrect"
+            })
+
+
+        elif question_type in ["multichoice", "true-false"]:
             is_correct = (user_answer.lower() == correct_answer.lower())
             result.append({
                 "question": answer.get("question", ""),
