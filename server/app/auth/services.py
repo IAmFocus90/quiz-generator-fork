@@ -25,7 +25,7 @@ from server.app.db.core.config import settings
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+  
 
 #mock_db: list[UserModel] = []  
 

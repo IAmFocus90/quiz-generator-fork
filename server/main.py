@@ -118,9 +118,6 @@ async def download_quiz_handler(query: DownloadQuizQuery = Depends()) -> Streami
 app.include_router(save_quiz_router, prefix="/api")
 app.include_router(get_quiz_history_router, prefix="/api")
 
-
-
-
 @app.get("/ping-redis")
 def ping_redis():
     r = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))

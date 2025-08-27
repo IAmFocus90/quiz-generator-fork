@@ -16,7 +16,7 @@ from ..auth.services import (
     logout_service
 )
 from server.app.auth.utils import generate_otp, generate_verification_token, create_access_token
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, ResendVerificationRequest
 from server.app.db.models.user_models import UserDB
 from server.app.dependancies import get_current_user
@@ -25,7 +25,8 @@ from server.app.db.core.redis import get_redis_client
 
 router = APIRouter()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+security = HTTPBearer()
 TOKEN_BLACKLIST_PREFIX = "blacklist:"
 
 @router.get("/ping")
@@ -78,8 +79,10 @@ async def reset_password(request: PasswordResetRequest):
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
-    token: str = Depends(oauth2_scheme),
+    # token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     blacklist_collection = Depends(get_blacklisted_tokens_collection)
 ):
+    token = credentials.credentials
     return await logout_service(token, blacklist_collection)
    
