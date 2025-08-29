@@ -8,6 +8,7 @@ from ..auth.services import (
     register_user_service,
     verify_otp_service,
     verify_link_service,
+    resend_verification_email_service,
     login_service,
     request_password_reset_service,
     reset_password_service,
@@ -15,8 +16,8 @@ from ..auth.services import (
     logout_service
 )
 from server.app.auth.utils import generate_otp, generate_verification_token, create_access_token
-from fastapi.security import OAuth2PasswordBearer
-from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
+from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, ResendVerificationRequest
 from server.app.db.models.user_models import UserDB
 from server.app.dependancies import get_current_user
 from server.app.auth.models import LoginRequestModel, LoginResponse
@@ -24,7 +25,8 @@ from server.app.db.core.redis import get_redis_client
 
 router = APIRouter()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+# oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+security = HTTPBearer()
 TOKEN_BLACKLIST_PREFIX = "blacklist:"
 
 @router.get("/ping")
@@ -48,20 +50,9 @@ async def verify_link(token: str, request: Request):
     redis_client = request.app.state.redis
     return await verify_link_service(token, users_collection, redis_client)
 
-# @router.post("/login/", response_model=LoginResponse)
-# async def login(
-#     request_data: LoginRequestModel,
-#     users_collection: AsyncIOMotorCollection = Depends(get_users_collection),
-#     redis_client: Redis = Depends(get_redis_client),
-    
-# ):
-#     #users_collection = request.app.state.users_collection
-#     return await login_service(
-#         identifier=request_data.identifier,
-#         password=request_data.password,
-#         users_collection=users_collection,
-#         redis_client=redis_client
-#     )
+@router.post("/resend-verification", response_model=MessageResponse)
+async def resend_verification(request: ResendVerificationRequest):
+    return await resend_verification_email_service(request.email)
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
@@ -86,14 +77,12 @@ async def request_password_reset(request: RequestPasswordReset):
 async def reset_password(request: PasswordResetRequest):
     return await reset_password_service(request)
 
-# @router.get("/me")
-# def get_me(current_user: dict = Depends(get_current_user)):
-#     return {"message": "Access granted", "user": current_user}
-
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
-    token: str = Depends(oauth2_scheme),
+    # token: str = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     blacklist_collection = Depends(get_blacklisted_tokens_collection)
 ):
+    token = credentials.credentials
     return await logout_service(token, blacklist_collection)
    

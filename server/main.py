@@ -25,6 +25,11 @@ from server.app.db.routes.save_quiz_history import router as save_quiz_router
 from server.app.db.routes.get_quiz_history import router as get_quiz_history_router
 from server.app.db.core.connection import startUp
 from server.app.quiz.routers.quiz import router as quiz_router
+from .app.db.routes.save_quiz_history import router as save_quiz_router
+from .app.db.routes.get_quiz_history import router as get_quiz_history_router
+from .app.db.core.connection import startUp
+from .app.quiz.routers.quiz import router as quiz_router
+from .app.share.routes.share_routes import router as share_router
 from .schemas.model import UserModel, LoginRequestModel, LoginResponseModel
 from .schemas.query import (
     GenerateQuizQuery,
@@ -41,14 +46,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 load_dotenv()
+redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await startUp()
-    redis = Redis.from_url("redis://localhost:6379", decode_responses=True)
+    redis = Redis.from_url(redis_url, decode_responses=True)
     app.state.redis = redis
 
     app.state.users_collection = get_users_collection()
@@ -72,6 +81,7 @@ app.add_middleware(
 
 app.include_router(db_router)
 app.include_router(quiz_router, prefix="/api", tags=["quiz"])
+app.include_router(share_router, prefix="/share", tags=["share"])
 app.include_router(healthcheck.router, prefix="/api", tags=["healthcheck"])
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 
@@ -82,8 +92,6 @@ app.database = database
 def read_root():
     logger.info("Root endpoint accessed")
     return {"message": "Welcome to the Quiz App API!"}
-
-load_dotenv()  
 
 
 @app.get("/users")
@@ -109,9 +117,6 @@ async def download_quiz_handler(query: DownloadQuizQuery = Depends()) -> Streami
 
 app.include_router(save_quiz_router, prefix="/api")
 app.include_router(get_quiz_history_router, prefix="/api")
-
-
-
 
 @app.get("/ping-redis")
 def ping_redis():

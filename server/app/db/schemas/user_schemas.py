@@ -130,6 +130,10 @@ class PasswordResetRequest(BaseModel):
                 raise ValueError("Token is required when reset method is 'token'")
             return values
 
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+    #method: str
+
 class PasswordResetResponse(BaseModel):
     message: str
     success: bool

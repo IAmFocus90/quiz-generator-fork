@@ -6,10 +6,11 @@ import logging
 
 load_dotenv()
 
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+SMTP_SERVER = os.getenv("EMAIL_HOST")
+SMTP_PORT = os.getenv("EMAIL_PORT")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL")  
 SENDER_PASSWORD = os.getenv("SENDER_PASSWORD")
+BACKEND_URL = os.getenv("BACKEND_URL")
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.ERROR)
@@ -20,7 +21,7 @@ logger.addHandler(handler)
 def send_otp_email(email: str, otp: str, token: str, mode="register"):
     if mode == "reset":
         subject = "Reset your password on Quiz Generator"
-        verification_link = f"http://localhost:8000/reset-password-link/?token={token}"
+        verification_link = f"{BACKEND_URL}/reset-password-link/?token={token}"
         body = f"""
         You requested to reset your password.
 
@@ -32,7 +33,7 @@ def send_otp_email(email: str, otp: str, token: str, mode="register"):
         """
     else:
         subject = "Please verify your account on Quiz Generator"
-        verification_link = f"http://localhost:8000/verify-link/?token={token}"
+        verification_link = f"{BACKEND_URL}/verify-link/?token={token}"
         body = f"""
         Thank you for registering!
 
