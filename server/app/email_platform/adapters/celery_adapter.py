@@ -1,4 +1,3 @@
-import os
 import logging
 from ..models import EmailPayload, SendResult
 from ..renderer import render_email

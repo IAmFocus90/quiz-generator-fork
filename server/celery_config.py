@@ -18,11 +18,9 @@ if parsed.scheme == "rediss":
         "ssl_cert_reqs": ssl.CERT_NONE
     }
 
-# Align task names with actual @task names and add the new generic task
 celery_app.conf.task_routes = {
     "tasks.send_quiz_email": {"queue": "email"},
     "tasks.send_email_generic": {"queue": "email"},
 }
 
-# Ensure tasks are registered
-import server.app.share.share_tasks  # noqa: E402,F401
+import server.app.share.share_tasks
