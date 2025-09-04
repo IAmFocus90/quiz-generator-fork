@@ -79,7 +79,6 @@ async def reset_password(request: PasswordResetRequest):
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(
-    # token: str = Depends(oauth2_scheme),
     credentials: HTTPAuthorizationCredentials = Depends(security),
     blacklist_collection = Depends(get_blacklisted_tokens_collection)
 ):
