@@ -15,6 +15,9 @@ database = client["quizApp_db"]
 quizzes_collection = database["quizzes"]
 users_collection = database["users"]
 quiz_history_collection = database["quiz_history"]
+ai_generated_quizzes_collection = database["ai_generated_quizzes"]
+
+
 
 async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):
     await users_collection.create_index("email", unique=True) 
@@ -33,3 +36,5 @@ def get_users_collection() -> AsyncIOMotorCollection:
 def get_quizzes_collection() -> AsyncIOMotorCollection:
     return quizzes_collection
 
+def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
+    return ai_generated_quizzes_collection

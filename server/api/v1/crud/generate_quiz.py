@@ -8,7 +8,7 @@ from ..db import (
     quiz_data_open_ended,
     quiz_data_true_false
 )
-from .update_quiz_history import update_quiz_history
+from ....app.db.crud.update_quiz_history import update_quiz_history
 
 def generate_quiz(user_id: str, question_type: str, num_question: int) -> dict[str, Any]:
     if question_type == "multichoice":
