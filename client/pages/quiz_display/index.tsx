@@ -85,7 +85,7 @@ const QuizDisplayPage: React.FC = () => {
     difficultyLevel,
     audienceType,
     customInstruction,
-  ]); // ✅ properly closed useEffect here
+  ]);
 
   const handleAnswerChange = (index: number, answer: string | number) => {
     const updated = [...userAnswers];
@@ -99,20 +99,38 @@ const QuizDisplayPage: React.FC = () => {
         const correct = q.answer ?? q.correct_answer;
         if (correct === undefined)
           throw new Error(`No answer for ${q.question}`);
+
+        let userAnswer = userAnswers[i];
+        let correctAnswer = correct;
+
+        // ✅ Keep true/false as binary values (1 or 0) for backend
+        if (q.question_type === "true-false") {
+          if (typeof userAnswer === "string") {
+            userAnswer = userAnswer.toLowerCase() === "true" ? 1 : 0;
+          }
+          if (typeof correctAnswer === "string") {
+            correctAnswer = correctAnswer.toLowerCase() === "true" ? 1 : 0;
+          }
+        }
+
         return {
           question: q.question,
-          user_answer: userAnswers[i].toString(),
-          correct_answer: correct.toString(),
+          user_answer: userAnswer,
+          correct_answer: correctAnswer,
           question_type: q.question_type,
           source: q.source || "unknown",
         };
       });
+
+      // Debugging: check what's being sent to backend
+      console.log("Payload being sent to backend:", payload);
 
       const { data: report } = await axios.post(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/grade-answers`,
         payload,
       );
 
+      // Convert back to "true"/"false" for display only
       const transformed = report.map((r: any) =>
         r.question_type === "true-false"
           ? {

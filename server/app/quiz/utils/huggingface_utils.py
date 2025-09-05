@@ -1,31 +1,34 @@
 import os
 import re
-from typing import Any, Dict, List, Union, Optional
+from typing import Any, Dict, List, Optional
 from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
 
 load_dotenv()
 client = InferenceClient(token=os.getenv("HUGGINGFACEHUB_API_TOKEN"))
 
-
-# ====== PARSING FUNCTIONS ======
+# =====================================================
+# =============== PARSING FUNCTIONS ===================
+# =====================================================
 
 def parse_multichoice(response: str) -> List[Dict[str, Any]]:
+    """Parse multiple-choice questions with A–D options."""
     question_blocks = re.findall(
-        r"\*\*\d+\. (.*?)\*\*\s+(.*?)\n\n\*\*Answer:\*\* ([A-D])",
+        r"\*\*\d+\.\s*(.*?)\*\*\s*(.*?)\n+\*\*Answer:\*\*\s*([A-D])",
         response,
         re.DOTALL
     )
 
     questions = []
     for question_text, options_block, correct_letter in question_blocks:
-        options = re.findall(r"([A-D]\)) (.*?)\s{2,}", options_block + "  ", re.DOTALL)
+        # Find options A-D
+        options = re.findall(r"([A-D]\))\s*(.*?)\s{2,}", options_block + "  ", re.DOTALL)
         if not options:
-            options = re.findall(r"([A-D]\)) (.*?)\n", options_block)
+            options = re.findall(r"([A-D]\))\s*(.*?)\n", options_block)
 
         formatted_options = [f"{opt[0]} {opt[1].strip()}" for opt in options]
 
-        # Convert "A"/"B"/"C"/"D" into full text option
+        # Convert "A"/"B"/"C"/"D" into the actual text
         idx = ord(correct_letter.strip().upper()) - ord("A")
         correct_answer = formatted_options[idx] if 0 <= idx < len(formatted_options) else correct_letter
 
@@ -39,13 +42,12 @@ def parse_multichoice(response: str) -> List[Dict[str, Any]]:
 
 
 def parse_true_false(response: str) -> List[Dict[str, Any]]:
-    """Parse true/false questions from model response."""
+    """Parse true/false questions."""
     question_blocks = re.findall(
-        r"\*\*\d+\. (.*?)\*\*\n\n\*\*Answer:\*\* (True|False)",
+        r"\*\*\d+\.\s*(.*?)\*\*\s*\n+\*\*Answer:\*\*\s*(True|False)",
         response,
-        re.DOTALL | re.IGNORECASE
+        re.IGNORECASE | re.DOTALL
     )
-
     return [
         {
             "question": q.strip(),
@@ -58,9 +60,9 @@ def parse_true_false(response: str) -> List[Dict[str, Any]]:
 
 
 def parse_open_ended(response: str) -> List[Dict[str, Any]]:
-    """Parse open-ended questions (longer answers)."""
+    """Parse open-ended questions requiring longer answers."""
     question_blocks = re.findall(
-        r"\*\*\d+\. (.*?)\*\*\n\n\*\*Answer:\*\* (.+)",
+        r"\*\*\d+\.\s*(.*?)\*\*\s*\n+\*\*Answer:\*\*\s*(.+?)(?=\n\*\*|$)",
         response,
         re.DOTALL
     )
@@ -75,62 +77,94 @@ def parse_open_ended(response: str) -> List[Dict[str, Any]]:
 
 
 def parse_short_answer(response: str) -> List[Dict[str, Any]]:
-    """Parse short-answer questions (1–3 words)."""
+    """Parse short-answer questions requiring 1–3 words."""
     return [
         {**item, "question_type": "short-answer"}
         for item in parse_open_ended(response)
     ]
 
-# ====== PROMPT BUILDER ======
+# =====================================================
+# ================= PROMPT BUILDER ====================
+# =====================================================
 
-def build_prompt(profession: str, question_type: str, difficulty_level: str, num_questions: int, audience_type: str, custom_instruction: Optional[str]) -> str:
+def build_prompt(
+    profession: str,
+    question_type: str,
+    difficulty_level: str,
+    num_questions: int,
+    audience_type: str,
+    custom_instruction: Optional[str]
+) -> str:
+    """
+    Builds a prompt with all required parameters to generate a well-structured quiz.
+    """
+
+    # Strict format instructions for each type
     type_formats = {
         "multichoice": """
-Each question should be clearly numbered and provide options A–D, with the correct answer stated after each question.
-Format:
-**1. Question here**
-A) Option A  
-B) Option B  
-C) Option C  
-D) Option D  
+Each question must have 4 options (A–D), with only one correct answer.
+Format Example:
+**1. What is the capital of France?**
+A) Berlin  
+B) Madrid  
+C) Paris  
+D) Rome  
 
-**Answer:** A
+**Answer:** C
 """,
         "true-false": """
-Each question should be clearly numbered, followed by the correct answer ("True" or "False").
-Format:
-**1. Question here**
+For each True/False item:
+- Each question must be answerable as "True" or "False" only.
+- Ensure the statement is factually correct for the specified topic and timeframe.
+- (Optional) Add a 5–10 word justification after the label starting with “Because…”.
+
+Format Example:
+**1. The Earth revolves around the Sun.**
 
 **Answer:** True
 """,
         "open-ended": """
-Each question should be clearly numbered, followed by the correct answer in a few words or one sentence.
-Format:
-**1. Question here**
+Each question should require a descriptive response of 1-2 sentences.
+Format Example:
+**1. Explain the process of photosynthesis.**
 
-**Answer:** Correct answer here
+**Answer:** Photosynthesis is the process by which green plants use sunlight to synthesize nutrients from carbon dioxide and water.
 """,
         "short-answer": """
-Each question should be clearly numbered, followed by the correct answer in 1–3 words.
-Format:
-**1. Question here**
+Each question should require a very short response (1–3 words).
+Format Example:
+**1. What is the chemical symbol for water?**
 
-**Answer:** Correct answer here
+**Answer:** H2O
 """
     }
 
+    # Include extra custom instruction if provided
     custom_part = f"\nAdditional instructions: {custom_instruction}" if custom_instruction else ""
+
+    # Full prompt
     return f"""
-Generate a {difficulty_level} difficulty {question_type} quiz with {num_questions} questions on {profession}.
-The quiz is intended for {audience_type} learners.
+You are generating a **{difficulty_level} difficulty** {question_type} quiz with **{num_questions} questions**.
+The quiz topic is **{profession}**, and it is intended for **{audience_type} learners**.
+
+The questions **must strictly follow the format shown below** and must be tailored to the specified topic, audience, and difficulty level.
+Ensure every question reflects the topic and context.
+
 {type_formats.get(question_type, type_formats['multichoice'])}
+
 {custom_part}
+
+Now generate the quiz:
 """
 
-
-# ====== MAIN FUNCTION ======
+# =====================================================
+# ================= MAIN FUNCTION =====================
+# =====================================================
 
 def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generates a quiz from the HuggingFace model based on user parameters.
+    """
     profession = payload.get("profession", "General Knowledge")
     question_type = payload.get("question_type", "multichoice").lower()
     difficulty_level = payload.get("difficulty_level", "medium")
@@ -138,10 +172,17 @@ def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, Any]:
     audience_type = payload.get("audience_type", "general")
     custom_instruction = payload.get("custom_instruction")
 
+    # Build the prompt with all parameters
     prompt = build_prompt(
-        profession, question_type, difficulty_level, num_questions, audience_type, custom_instruction
+        profession,
+        question_type,
+        difficulty_level,
+        num_questions,
+        audience_type,
+        custom_instruction
     )
 
+    # Call HuggingFace chat API
     response = client.chat.completions.create(
         model="deepseek-ai/DeepSeek-V3-0324",
         messages=[{"role": "user", "content": prompt}],
@@ -151,7 +192,10 @@ def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     response_text = response.choices[0].message.content
 
-    # Select parser based on question type
+    # Debugging log
+    print("\n--- Raw Model Response ---\n", response_text, "\n--------------------------\n")
+
+    # Choose the correct parser
     if question_type == "multichoice":
         questions = parse_multichoice(response_text)
     elif question_type == "true-false":
@@ -161,7 +205,10 @@ def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, Any]:
     elif question_type == "short-answer":
         questions = parse_short_answer(response_text)
     else:
-        return {"error": f"Unsupported question type: {question_type}", "raw": response_text}
+        return {
+            "error": f"Unsupported question type: {question_type}",
+            "raw": response_text
+        }
 
     return {
         "message": "Quiz generated successfully",
@@ -171,5 +218,6 @@ def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, Any]:
         "difficulty_level": difficulty_level,
         "audience_type": audience_type,
         "custom_instruction": custom_instruction,
-        "questions": questions
+        "questions": questions,
+        "raw_response": response_text  # Keep raw response for debugging
     }
