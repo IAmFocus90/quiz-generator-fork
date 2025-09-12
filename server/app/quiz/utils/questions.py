@@ -37,8 +37,7 @@ async def get_questions(request: QuizRequest, user_id: str = "defaultUserId") ->
 
         source = "huggingface"
 
-        # === 2. Auto-save quiz to MongoDB ===
-        ai_quiz = {
+        ai_quiz_payload = {
             "profession": request.profession,
             "question_type": request.question_type,
             "difficulty_level": request.difficulty_level,
@@ -47,8 +46,6 @@ async def get_questions(request: QuizRequest, user_id: str = "defaultUserId") ->
             "custom_instruction": request.custom_instruction,
             "questions": final_questions  # Pass formatted list
         }
-
-        await save_ai_generated_quiz(ai_quiz)
 
     except Exception as e:
         # === 3. Fallback to mock quiz generation ===
@@ -78,6 +75,12 @@ async def get_questions(request: QuizRequest, user_id: str = "defaultUserId") ->
 
     # === 4. Update quiz history ===
     update_quiz_history(user_id, final_questions)
+
+    if source == "huggingface" and ai_quiz_payload:
+        try:
+            await save_ai_generated_quiz(ai_quiz_payload)
+        except Exception as db_error:
+            logging.error(f"Failed to save AI-generated quiz to DB: {db_error}")
 
     # === 5. Return final result ===
     return {

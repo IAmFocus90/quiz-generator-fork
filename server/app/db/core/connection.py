@@ -26,9 +26,17 @@ async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):
     await users_collection.create_index("is_active") 
 
 
+async def ensure_ai_quiz_indexes(ai_generated_quizzes_collection: AsyncIOMotorCollection):
+    """Indexes for the AI-generated quizzes collection."""
+    # Compound unique index: no two identical quizzes with same title and questions
+    await ai_generated_quizzes_collection.create_index(
+        [("title", 1), ("questions", 1)],
+        unique=True
+    )
 
 async def startUp():
     await ensure_user_indexes(users_collection)
+    await ensure_ai_quiz_indexes(ai_generated_quizzes_collection)
 
 def get_users_collection() -> AsyncIOMotorCollection:
     return users_collection

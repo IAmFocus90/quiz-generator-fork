@@ -10,7 +10,7 @@ class AIQuestion(BaseModel):
     """
     question: str
     options: Optional[List[str]] = None  # For multiple choice or true/false
-    correct_answer: str                  # The correct answer to the question
+    answer: str                  # The correct answer to the question
     question_type: str                   # e.g., "multiple choice", "true or false", "open ended"
 
 
