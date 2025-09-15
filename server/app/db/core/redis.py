@@ -1,15 +1,67 @@
-from redis.asyncio import Redis
-from dotenv import load_dotenv
 import os
+from urllib.parse import urlparse
+from dotenv import load_dotenv
+import ssl
+from redis.asyncio import Redis
+
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-redis: Redis = Redis.from_url(redis_url, decode_responses=True)
+
+redis_kwargs = {
+    "decode_responses": True,  # strings instead of bytes
+}
+
+parsed = urlparse(REDIS_URL)
+if parsed.scheme == "rediss":
+    redis_kwargs.update({
+        "ssl": True,
+        "ssl_cert_reqs": ssl.CERT_NONE,
+    })
+
+# One shared async Redis client for reuse across the app.
+redis: Redis = Redis.from_url(REDIS_URL, **redis_kwargs)
 
 
 async def get_redis_client() -> Redis:
+    """
+    Return the shared Redis client. Import and call this from other modules (or import `redis` directly).
+    """
     return redis
+
+
+async def close_redis_client() -> None:
+    """Gracefully close the client (call on app shutdown)."""
+    try:
+        await redis.close()
+        await redis.connection_pool.disconnect()
+    except Exception:
+        # intentionally silent here; swap for logging if needed
+        pass
+
+
+
+
+
+
+
+
+
+# from redis.asyncio import Redis
+# from dotenv import load_dotenv
+# import os
+
+# BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+# redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# redis: Redis = Redis.from_url(redis_url, decode_responses=True)
+
+
+# async def get_redis_client() -> Redis:
+#     return redis
 
