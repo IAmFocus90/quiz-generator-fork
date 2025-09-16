@@ -14,8 +14,13 @@ async def get_questions(request: QuizRequest, user_id: str = "defaultUserId") ->
     """
     Generate quiz questions using Hugging Face AI.
     Falls back to mock data if AI generation fails.
+    Notifies frontend when AI is down via 'ai_down' flag and message.
     Automatically saves AI-generated quizzes to the database.
     """
+    ai_down = False  # ✅ Track if AI was unavailable
+    notification_message = None
+    ai_quiz_payload = None
+
     try:
         # === 1. Attempt Hugging Face AI generation ===
         ai_payload = request.dict()
@@ -48,8 +53,12 @@ async def get_questions(request: QuizRequest, user_id: str = "defaultUserId") ->
         }
 
     except Exception as e:
-        # === 3. Fallback to mock quiz generation ===
+        # === 2. Notify UI that AI is down ===
+        ai_down = True
+        notification_message = "AI model is currently unavailable. Using mock questions instead."
         logging.warning(f"Hugging Face fallback triggered: {e}")
+
+        # === 3. Fallback to mock quiz generation ===
         question_type = request.question_type
         num_questions = request.num_questions
 
@@ -76,14 +85,17 @@ async def get_questions(request: QuizRequest, user_id: str = "defaultUserId") ->
     # === 4. Update quiz history ===
     update_quiz_history(user_id, final_questions)
 
+    # === 5. Save AI-generated quiz if successfully generated ===
     if source == "huggingface" and ai_quiz_payload:
         try:
             await save_ai_generated_quiz(ai_quiz_payload)
         except Exception as db_error:
             logging.error(f"Failed to save AI-generated quiz to DB: {db_error}")
 
-    # === 5. Return final result ===
+    # === 6. Return final result to frontend ===
     return {
         "source": source,
-        "questions": final_questions
+        "questions": final_questions,
+        "ai_down": ai_down,  # ✅ Frontend can now detect AI unavailability
+        "notification_message": notification_message  # ✅ Message for toast
     }
