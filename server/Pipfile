@@ -18,6 +18,12 @@ celery = "*"
 pyjwt = "*"
 testcontainers = "*"
 pypdf = "*"
+pymongo = "*"
+huggingface-hub = "*"
+transformers = "*"
+torch = "*"
+fuzzywuzzy = "*"
+rapidfuzz = "*"
 
 [dev-packages]
 pytest = "*"
@@ -25,3 +31,4 @@ pytest-asyncio = "*"
 
 [requires]
 python_version = "3.12"
+
