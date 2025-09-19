@@ -18,6 +18,8 @@ celery = "*"
 pyjwt = "*"
 testcontainers = "*"
 pypdf = "*"
+passlib = "*"
+pydantic-settings = "*"
 
 [dev-packages]
 pytest = "*"

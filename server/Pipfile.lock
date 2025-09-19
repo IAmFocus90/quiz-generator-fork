@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "035b077f0edc065ace349f726060c36aad67b8aad0ef675cdda5e3d3de12931e"
+            "sha256": "1a245f82093e9ca43df8f2320c4577f95abe78a95e233f8a4837c58f4bdbb763"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -336,11 +336,12 @@
                 "standard"
             ],
             "hashes": [
-                "sha256:4f01d751c14d3d2760339cca0f45e81d816218cae8174d1dc757b5375868cde5",
-                "sha256:bcdd1123c6077c7466452b9490ca47821f00eb784d58496674793003f9f8e33a"
+                "sha256:09cbc2d171639ce9e489c78ad8a439328993a8f4c9005d78d58498327492aa3a",
+                "sha256:ec8f8b12080b5a29a08c7f15ba50649f59b5cd28646cb1737c511b319d0408e4"
             ],
+            "index": "pypi",
             "markers": "python_version >= '3.8'",
-            "version": "==0.0.11"
+            "version": "==0.0.12"
         },
         "fastapi-cloud-cli": {
             "hashes": [
@@ -669,6 +670,14 @@
             "markers": "python_version >= '3.8'",
             "version": "==25.0"
         },
+        "passlib": {
+            "hashes": [
+                "sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1",
+                "sha256:defd50f72b65c5402ab2c573830a6978e5f202ad0d984793c8dde2c4152ebe04"
+            ],
+            "index": "pypi",
+            "version": "==1.7.4"
+        },
         "pillow": {
             "hashes": [
                 "sha256:023f6d2d11784a465f09fd09a34b150ea4672e85fb3d05931d89f373ab14abb2",
@@ -802,11 +811,11 @@
                 "email"
             ],
             "hashes": [
-                "sha256:d989c3c6cb79469287b1569f7447a17848c998458d49ebe294e975b9baf0f0db",
-                "sha256:dde5df002701f6de26248661f6835bbe296a47bf73990135c7d07ce741b9623b"
+                "sha256:6b8ffda597a14812a7975c90b82a8a2e777d9257aba3453f973acd3c032a18e2",
+                "sha256:c42dd626f5cfc1c6950ce6205ea58c93efa406da65f479dcb4029d5934857da2"
             ],
             "markers": "python_version >= '3.9'",
-            "version": "==2.11.7"
+            "version": "==2.11.9"
         },
         "pydantic-core": {
             "hashes": [
@@ -912,6 +921,15 @@
             ],
             "markers": "python_version >= '3.9'",
             "version": "==2.33.2"
+        },
+        "pydantic-settings": {
+            "hashes": [
+                "sha256:06f0062169818d0f5524420a360d632d5857b83cffd4d42fe29597807a1614ee",
+                "sha256:a60952460b99cf661dc25c29c0ef171721f98bfcb52ef8d9ea4c943d7c8cc796"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3.9'",
+            "version": "==2.10.1"
         },
         "pygments": {
             "hashes": [

@@ -39,7 +39,7 @@ async def close_redis_client() -> None:
         await redis.close()
         await redis.connection_pool.disconnect()
     except Exception:
-        # intentionally silent here; swap for logging if needed
+        # intentionally silent here, function not called anywhere yet; swap for logging when called and if needed
         pass
 
 
