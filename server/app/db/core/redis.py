@@ -17,10 +17,14 @@ redis_kwargs = {
 
 parsed = urlparse(REDIS_URL)
 if parsed.scheme == "rediss":
+    # create SSL context instead of passing ssl=True directly
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE
     redis_kwargs.update({
-        "ssl": True,
-        "ssl_cert_reqs": ssl.CERT_NONE,
+        "ssl": ssl_ctx,  # <--- pass SSLContext object
     })
+
 
 # One shared async Redis client for reuse across the app.
 redis: Redis = Redis.from_url(REDIS_URL, **redis_kwargs)
