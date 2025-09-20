@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "13c12c3f4530dcf140ddd704634b09f927823dbe705f965e8d0f3616b916ae91"
+            "sha256": "c6bfd499be08bf6f4930fa6d299341a4f72b5da45e245ae80293643b7694e646"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -336,11 +336,11 @@
                 "standard"
             ],
             "hashes": [
-                "sha256:09cbc2d171639ce9e489c78ad8a439328993a8f4c9005d78d58498327492aa3a",
-                "sha256:ec8f8b12080b5a29a08c7f15ba50649f59b5cd28646cb1737c511b319d0408e4"
+                "sha256:219b73ccfde7622559cef1d43197da928516acb4f21f2ec69128c4b90057baba",
+                "sha256:312addf3f57ba7139457cf0d345c03e2170cc5a034057488259c33cd7e494529"
             ],
             "markers": "python_version >= '3.8'",
-            "version": "==0.0.12"
+            "version": "==0.0.13"
         },
         "fastapi-cloud-cli": {
             "hashes": [
@@ -1120,12 +1120,12 @@
         },
         "redis": {
             "hashes": [
-                "sha256:ca49577a531ea64039b5a36db3d6cd1a0c7a60c34124d46924a45b956e8cf14c",
-                "sha256:dc1909bd24669cc31b5f67a039700b16ec30571096c5f1f0d9d2324bff31af97"
+                "sha256:b01bc7282b8444e28ec36b261df5375183bb47a07eb9c603f284e89cbc5ef010",
+                "sha256:f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f"
             ],
             "index": "pypi",
-            "markers": "python_version >= '3.8'",
-            "version": "==5.3.1"
+            "markers": "python_version >= '3.9'",
+            "version": "==6.4.0"
         },
         "reportlab": {
             "hashes": [
