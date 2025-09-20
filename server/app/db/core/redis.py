@@ -17,12 +17,13 @@ redis_kwargs = {
 
 parsed = urlparse(REDIS_URL)
 if parsed.scheme == "rediss":
-    # create SSL context instead of passing ssl=True directly
+    # Create SSL context
     ssl_ctx = ssl.create_default_context()
     ssl_ctx.check_hostname = False
     ssl_ctx.verify_mode = ssl.CERT_NONE
+    # Pass as ssl_context instead of ssl
     redis_kwargs.update({
-        "ssl": ssl_ctx,  # <--- pass SSLContext object
+        "ssl_context": ssl_ctx,
     })
 
 
