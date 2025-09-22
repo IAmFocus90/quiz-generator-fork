@@ -16,7 +16,6 @@ quizzes_collection = database["quizzes"]
 users_collection = database["users"]
 quiz_history_collection = database["quiz_history"]
 quiz_categories_collection = database["quizzes_category"]
-=======
 blacklisted_tokens_collection = database["blacklisted_tokens"]
 ai_generated_quizzes_collection = database["ai_generated_quizzes"]
 

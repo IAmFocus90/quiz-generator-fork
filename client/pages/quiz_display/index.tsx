@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import axios from "axios";
 import { useSearchParams } from "next/navigation";
-import { toast } from "react-hot-toast";
+import toast from "react-hot-toast";
 import {
   CheckButton,
   NewQuizButton,
@@ -42,18 +42,18 @@ const QuizDisplayPage: React.FC = () => {
       };
 
       try {
-        // 🔹 Single request — backend decides AI or mock
         const { data } = await axios.post(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
           basePayload,
         );
 
+        console.log("🔥 RAW RESPONSE FROM BACKEND:", data);
+
         // ✅ Notify user if AI is down
-        if (data.ai_down) {
-          toast.error(
-            data.notification_message ||
-              "AI model unavailable. Using mock quiz instead.",
-          );
+        if (data?.ai_down) {
+          toast.error(data.notification_message || "AI model unavailable.", {
+            duration: 4000,
+          });
         }
 
         const questions = data?.questions || [];

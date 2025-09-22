@@ -41,8 +41,10 @@ export default function QuizForm() {
         },
       );
 
+      console.log("🔥 RAW RESPONSE FROM BACKEND:", data);
+
       const userId = "userId"; // Replace with actual auth value later
-      const source = "ai"; // 👈 Indicating this is an AI-generated quiz
+      const source = data.source || "mock"; // ✅ dynamically set from backend
 
       const queryParams = new URLSearchParams({
         userId,
