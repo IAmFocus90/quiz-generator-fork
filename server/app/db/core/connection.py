@@ -3,7 +3,7 @@ load_dotenv()
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 import os
-from pathlib import Path
+from datetime import datetime
 
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
@@ -18,6 +18,9 @@ quiz_history_collection = database["quiz_history"]
 ai_generated_quizzes_collection = database["ai_generated_quizzes"]
 
 
+quiz_categories_collection = database["quizzes_category"]
+=======
+blacklisted_tokens_collection = database["blacklisted_tokens"]
 
 async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):
     await users_collection.create_index("email", unique=True) 
@@ -25,7 +28,9 @@ async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):
     await users_collection.create_index("created_at") 
     await users_collection.create_index("is_active") 
 
-
+async def ensure_blacklist_indexes(blacklisted_tokens_collection: AsyncIOMotorCollection):
+    await blacklisted_tokens_collection.create_index("jti", unique=True)
+    await blacklisted_tokens_collection.create_index("expires_at")
 async def ensure_ai_quiz_indexes(ai_generated_quizzes_collection: AsyncIOMotorCollection):
     """Indexes for the AI-generated quizzes collection."""
     # Compound unique index: no two identical quizzes with same title and questions
@@ -39,10 +44,17 @@ async def startUp():
     await ensure_ai_quiz_indexes(ai_generated_quizzes_collection)
 
 def get_users_collection() -> AsyncIOMotorCollection:
+    if users_collection is None:
+        raise RuntimeError("[DB Error] users_collection has not been initialized properly.")
     return users_collection
 
 def get_quizzes_collection() -> AsyncIOMotorCollection:
+    if quizzes_collection is None:
+        raise RuntimeError("[DB Error] quizzes_collection has not been initialized properly.")
+    return quizzes_collection
     return quizzes_collection
 
 def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
     return ai_generated_quizzes_collection
+def get_blacklisted_tokens_collection() -> AsyncIOMotorCollection:
+    return blacklisted_tokens_collection
