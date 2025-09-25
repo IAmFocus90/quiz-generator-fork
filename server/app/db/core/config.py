@@ -15,10 +15,7 @@ class Settings(BaseSettings):
     db_name: str
     mongo_url: str
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(env_file=".env", extra = "allow")
 
 @lru_cache()
 def get_settings():

@@ -41,12 +41,20 @@ export default function QuizForm() {
         },
       );
 
-      const userId = "userId";
+      console.log("🔥 RAW RESPONSE FROM BACKEND:", data);
+
+      const userId = "userId"; // Replace with actual auth value later
+      const source = data.source || "mock"; // ✅ dynamically set from backend
+
       const queryParams = new URLSearchParams({
         userId,
         questionType,
         numQuestions: numQuestions.toString(),
         profession,
+        customInstruction, // 👈 Add this
+        audienceType,
+        difficultyLevel,
+        source, // 👈 Add the source to query params
       }).toString();
 
       router.push(`/quiz_display?${queryParams}`);
