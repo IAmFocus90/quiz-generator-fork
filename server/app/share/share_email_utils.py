@@ -1,6 +1,7 @@
 import os
 import logging
 import smtplib
+import ssl
 import time
 import socket
 from email.mime.text import MIMEText
@@ -37,7 +38,6 @@ def compose_quiz_email(recipient: str, title: str, description: str, shareable_l
         f"Description: {description}\n"
         f"Access it here: {shareable_link}\n\nEnjoy!"
     )
-
     message = MIMEText(body)
     message["Subject"] = subject
     message["From"] = sender_email
@@ -45,31 +45,47 @@ def compose_quiz_email(recipient: str, title: str, description: str, shareable_l
     return message
 
 
+def _send_one(recipient: str, message: MIMEText) -> None:
+    """
+    Send using SMTP on port 587 with STARTTLS.
+    Includes EHLO before and after STARTTLS and a proper SSL context.
+    """
+    context = ssl.create_default_context()
+    with smtplib.SMTP(email_host, email_port, timeout=SMTP_TIMEOUT) as server:
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient, message.as_string())
+
+
 def send_email(recipient: str, message: MIMEText) -> None:
     attempt = 0
-
     while attempt < MAX_RETRIES:
         try:
-            with smtplib.SMTP(email_host, email_port, timeout=SMTP_TIMEOUT) as server:
-                server.starttls()
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, recipient, message.as_string())
-
+            _send_one(recipient, message)
             logger.info(f"[Email] Email successfully sent to {recipient}")
             return
-
-        except (smtplib.SMTPException, socket.timeout, ConnectionRefusedError) as e:
+        except (
+            smtplib.SMTPServerDisconnected,
+            smtplib.SMTPConnectError,
+            smtplib.SMTPHeloError,
+            smtplib.SMTPAuthenticationError,
+            smtplib.SMTPException,
+            socket.timeout,
+            ssl.SSLError, 
+            ConnectionRefusedError,
+        ) as e:
             attempt += 1
-            logger.warning(
-                f"[Email Retry] Attempt {attempt}/{MAX_RETRIES} failed for {recipient}: {e}"
-            )
-
+            logger.warning(f"[Email Retry] Attempt {attempt}/{MAX_RETRIES} failed for {recipient}: {e}")
             if attempt < MAX_RETRIES:
                 delay = RETRY_DELAY * attempt
                 logger.info(f"[Email Retry] Retrying in {delay} seconds...")
                 time.sleep(delay)
             else:
                 logger.error(
-                    f"[Email Error] All {MAX_RETRIES} attempts failed for {recipient}.", exc_info=True
+                    f"[Email Error] All {MAX_RETRIES} attempts failed for {recipient}.",
+                    exc_info=True
                 )
                 raise
+

@@ -10,8 +10,6 @@ from jwt.exceptions import (
     DecodeError
 )
 import os
-from server.email_utils import send_otp_email
-from server.tasks import send_otp_task, send_password_reset_email
 from fastapi.security import OAuth2PasswordBearer
 import redis
 from server.app.db.core.connection import users_collection, blacklisted_tokens_collection, get_blacklisted_tokens_collection
@@ -22,14 +20,13 @@ from .utils import verify_password, create_access_token, generate_otp, generate_
 from server.app.db.core.redis import get_redis_client
 from passlib.context import CryptContext
 from server.app.db.core.config import settings
+from server.app.email_platform.service import EmailService
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
   
 
-#mock_db: list[UserModel] = []  
-
-async def register_user_service(user: UserRegisterSchema) -> UserResponseSchema:
+async def register_user_service(user: UserRegisterSchema, email_svc: EmailService) -> UserResponseSchema:
     existing_user = await users_collection.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -53,7 +50,13 @@ async def register_user_service(user: UserRegisterSchema) -> UserResponseSchema:
     await redis_client.setex(f"otp:{user.email}", timedelta(minutes=10), otp)
     await redis_client.setex(f"token:{user.email}", timedelta(minutes=30), token)
 
-    send_otp_task.delay(user.email, otp, token, mode="register")
+    await email_svc.send_email(
+        to=user.email,
+        template_id="verification",
+        template_vars={"code": otp, "token": token},
+        purpose="verification",              # Celery → Background → Direct
+        priority="default",
+    )
 
     return UserResponseSchema(
         id=created_user.id,
@@ -67,7 +70,7 @@ async def register_user_service(user: UserRegisterSchema) -> UserResponseSchema:
         role=created_user.role
     )
 
-async def resend_verification_email_service(email: str) -> MessageResponse:
+async def resend_verification_email_service(email: str, email_svc: EmailService) -> MessageResponse:
     user_data = await users_collection.find_one({"email": email})
     if not user_data:
         raise HTTPException(status_code=404, detail="User not found")
@@ -83,7 +86,13 @@ async def resend_verification_email_service(email: str) -> MessageResponse:
     await redis_client.setex(f"otp:{email}", timedelta(minutes=10), otp)
     await redis_client.setex(f"token:{email}", timedelta(minutes=30), token)
 
-    send_otp_task.delay(email, otp, token, mode="register")
+    await email_svc.send_email(
+        to=email,
+        template_id="verification",
+        template_vars={"code": otp, "token": token},
+        purpose="verification",  # Celery → Background → Direct
+        priority="default",
+    )
 
     return MessageResponse(message="Verification email resent successfully")
 
@@ -168,7 +177,7 @@ async def login_service(identifier: str, password: str, users_collection: AsyncI
         "token_type": "bearer"
     }
 
-async def request_password_reset_service(request: RequestPasswordReset):
+async def request_password_reset_service(request: RequestPasswordReset, email_svc: EmailService):
     user = await users_collection.find_one({"email": request.email})
     message = {"message": "If this email exists, reset instructions have been sent."}
     if not user:
@@ -181,7 +190,14 @@ async def request_password_reset_service(request: RequestPasswordReset):
     await redis_client.setex(f"otp:{request.email}", 300, otp)
     await redis_client.setex(f"token:{request.email}", 1800, token)
 
-    send_password_reset_email.delay(request.email, otp, token)
+    await email_svc.send_email(
+        to=request.email,
+        template_id="password_reset",
+        template_vars={"code": otp, "token": token},
+        purpose="password_reset",           # Celery → Background → Direct
+        priority="default",
+    )
+
     return message
 
 async def reset_password_service(request: PasswordResetRequest):
