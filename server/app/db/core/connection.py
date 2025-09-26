@@ -19,7 +19,6 @@ ai_generated_quizzes_collection = database["ai_generated_quizzes"]
 
 
 quiz_categories_collection = database["quizzes_category"]
-=======
 blacklisted_tokens_collection = database["blacklisted_tokens"]
 
 async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):
@@ -51,7 +50,6 @@ def get_users_collection() -> AsyncIOMotorCollection:
 def get_quizzes_collection() -> AsyncIOMotorCollection:
     if quizzes_collection is None:
         raise RuntimeError("[DB Error] quizzes_collection has not been initialized properly.")
-    return quizzes_collection
     return quizzes_collection
 
 def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
