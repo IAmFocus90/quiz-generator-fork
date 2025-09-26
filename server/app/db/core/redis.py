@@ -3,8 +3,9 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 from redis.asyncio import Redis, ConnectionPool
 import logging
+import ssl
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,22 +20,28 @@ redis_kwargs = {
 }
 
 if parsed.scheme == "rediss":
-    redis_kwargs.update({
-        "ssl_cert_reqs": "none",  # Match Celery's configuration
-    })
+    env = os.getenv("ENV", "development").lower()
+    if env == "production":
+        redis_kwargs.update({
+            "ssl_cert_reqs": ssl.CERT_REQUIRED,  
+        })
+    else:
+        redis_kwargs.update({
+            "ssl_cert_reqs": ssl.CERT_NONE, 
+        })
 
 redis_pool = ConnectionPool.from_url(REDIS_URL, **redis_kwargs)
 redis = Redis(connection_pool=redis_pool)
 
 async def get_redis_client() -> Redis:
-    logger.debug(f"Returning Redis client for URL: {REDIS_URL}, pool size: {redis_pool.max_connections}")
+    logger.info("Redis client acquired (pool ready)")
     return redis
 
 async def close_redis_client() -> None:
     try:
-        logger.debug("Closing Redis client and connection pool")
+        logger.info("Closing Redis client and connection pool")
         await redis.close()
         await redis.connection_pool.disconnect()
+        logger.info("Redis connection closed successfully")
     except Exception as e:
-        logger.error(f"Error closing Redis client: {str(e)}")
-        
+        logger.error(f"Error closing Redis client: {e}")
