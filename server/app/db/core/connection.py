@@ -51,7 +51,6 @@ def get_quizzes_collection() -> AsyncIOMotorCollection:
     if quizzes_collection is None:
         raise RuntimeError("[DB Error] quizzes_collection has not been initialized properly.")
     return quizzes_collection
-    return quizzes_collection
 
 def get_blacklisted_tokens_collection() -> AsyncIOMotorCollection:
     return blacklisted_tokens_collection
