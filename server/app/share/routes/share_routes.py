@@ -70,11 +70,11 @@ async def share_quiz_via_email(
             purpose="quiz_link",
             priority="default",
         )
-        logger.info(f"[API] Email pipeline triggered for {query.recipient_email} and quiz ID {query.quiz_id}")
+        logger.info(f"[API] Share email pipeline triggered for {query.recipient_email} and quiz ID {query.quiz_id}")
         return {"message": "Email sent successfully!"}
     
     except Exception as e:
-        logger.error(f"[API Error] Email pipeline failed: {e}", exc_info=True)
+        logger.error(f"[API Error] Share email pipeline failed: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send email. Please try again later."

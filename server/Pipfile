@@ -24,6 +24,9 @@ transformers = "*"
 torch = "*"
 fuzzywuzzy = "*"
 rapidfuzz = "*"
+aioredis = "*"
+passlib = "*"
+pydantic-settings = "*"
 
 [dev-packages]
 pytest = "*"
