@@ -12,6 +12,7 @@ import {
   NavBar,
   Footer,
   ShareButton,
+  SaveQuizButton,
 } from "../../components/home";
 import { saveQuizToHistory } from "../../lib/functions/saveQuizToHistory";
 
@@ -174,6 +175,7 @@ const QuizDisplayPage: React.FC = () => {
 
             <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-4 sm:space-y-0">
               <CheckButton onClick={checkAnswers} />
+              <SaveQuizButton quizData={quizQuestions} />
               <DownloadQuizButton
                 userId={userId}
                 question_type={questionType}
