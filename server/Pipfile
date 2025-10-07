@@ -28,6 +28,7 @@ torch = "*"
 fuzzywuzzy = "*"
 rapidfuzz = "*"
 cryptography = "*"
+beanie = "*"
 
 [dev-packages]
 pytest = "*"

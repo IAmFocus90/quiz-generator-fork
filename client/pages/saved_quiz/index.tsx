@@ -1,98 +1,133 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import toast from "react-hot-toast";
 import {
   getSavedQuizzes,
   deleteSavedQuiz,
 } from "../../lib/functions/savedQuiz";
+import NavBar from "../../components/home/NavBar";
+import Footer from "../../components/home/Footer";
+
+interface QuizQuestion {
+  question: string;
+  options?: string[];
+  correct_answer?: string;
+}
 
 interface SavedQuiz {
   _id: string;
   title: string;
   created_at: string;
-  quiz_data: any;
+  questions?: QuizQuestion[];
 }
 
-const SavedQuizzesPage = () => {
-  const [quizzes, setQuizzes] = useState<SavedQuiz[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // modal control
-  const userId = "dummy-user-123";
+const DisplaySavedQuizzesPage: React.FC<{
+  savedQuizzes: SavedQuiz[];
+  onDeleteClick: (quizId: string) => void;
+}> = ({ savedQuizzes, onDeleteClick }) => {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Fetch saved quizzes
-  useEffect(() => {
-    const fetchQuizzes = async () => {
-      try {
-        const data = await getSavedQuizzes();
-        setQuizzes(data || []);
-      } catch (err) {
-        console.error("Error fetching saved quizzes:", err);
-        toast.error("❌ Failed to load saved quizzes.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchQuizzes();
-  }, []);
-
-  // Handle delete
-  const handleDelete = async (quizId: string) => {
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
     try {
-      setDeleting(quizId);
-      await deleteSavedQuiz(quizId);
-      setQuizzes((prev) => prev.filter((quiz) => quiz._id !== quizId));
-      toast.success("✅ Quiz deleted successfully!");
+      await deleteSavedQuiz(confirmDeleteId);
+      toast.success("Quiz deleted successfully!");
+      onDeleteClick(confirmDeleteId);
+      setConfirmDeleteId(null);
     } catch (err) {
-      console.error("Error deleting quiz:", err);
-      toast.error("❌ Failed to delete quiz.");
-    } finally {
-      setDeleting(null);
-      setConfirmDelete(null); // close modal
+      console.error(err);
+      toast.error("Failed to delete quiz");
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#0a3264]"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Your Saved Quizzes</h1>
-      {quizzes.length === 0 ? (
-        <p>No saved quizzes yet.</p>
-      ) : (
-        <ul className="space-y-4">
-          {quizzes.map((quiz) => (
-            <li
-              key={quiz._id}
-              className="p-4 border rounded-lg shadow-md flex justify-between items-center"
-            >
-              <div>
-                <h2 className="text-lg font-semibold">{quiz.title}</h2>
-                <p className="text-sm text-gray-500">
-                  Saved on {new Date(quiz.created_at).toLocaleString()}
-                </p>
-              </div>
-              <button
-                onClick={() => setConfirmDelete(quiz._id)} // ✅ trigger modal
-                disabled={deleting === quiz._id}
-                className="text-red-600 hover:underline disabled:opacity-50"
+    <div className="flex flex-col min-h-screen bg-gray-100">
+      <NavBar />
+
+      <main className="flex-1 px-4 sm:px-6 md:px-8 py-8">
+        <div className="max-w-4xl mx-auto space-y-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#0F2654]">
+            Saved Quizzes
+          </h1>
+
+          {savedQuizzes.length === 0 ? (
+            <p className="text-center text-gray-600">
+              You haven’t saved any quizzes yet.
+            </p>
+          ) : (
+            savedQuizzes.map((quiz) => (
+              <div
+                key={quiz._id}
+                className="bg-white p-6 rounded-xl shadow-md border border-gray-200"
               >
-                {deleting === quiz._id ? "Deleting..." : "Delete"}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Saved on:{" "}
+                      {quiz.created_at
+                        ? new Date(quiz.created_at).toLocaleString()
+                        : "Unknown date"}
+                    </p>
+                    <h2 className="text-xl font-bold text-[#0F2654]">
+                      {quiz.title}
+                    </h2>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setConfirmDeleteId(quiz._id)}
+                      className="text-sm text-red-600 hover:text-red-800 font-semibold"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() =>
+                        (window.location.href = `/quiz_display?id=${quiz._id}`)
+                      }
+                      className="text-sm bg-[#0a3264] hover:bg-[#082952] text-white px-3 py-1 rounded-lg font-semibold"
+                    >
+                      View Quiz
+                    </button>
+                  </div>
+                </div>
+
+                {quiz.questions && quiz.questions.length > 0 ? (
+                  quiz.questions.map((q, idx) => (
+                    <div key={idx} className="mb-4">
+                      <h3 className="font-semibold text-gray-800 text-base sm:text-lg mb-1">
+                        {idx + 1}. {q.question}
+                      </h3>
+                      {q.options && (
+                        <ul className="ml-4 list-disc list-inside text-sm text-gray-700">
+                          {q.options.map((opt, optIdx) => (
+                            <li key={optIdx} className="py-0.5">
+                              {opt}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {q.correct_answer && (
+                        <p className="mt-1 text-sm text-[#0F2654]">
+                          <strong>Answer:</strong> {q.correct_answer}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500 italic">
+                    No questions found for this quiz.
+                  </p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </main>
+
+      <Footer />
 
       {/* Confirmation Modal */}
-      {confirmDelete && (
+      {confirmDeleteId && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full">
             <h2 className="text-lg font-bold mb-3 text-[#0a3264]">
@@ -104,17 +139,16 @@ const SavedQuizzesPage = () => {
             </p>
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setConfirmDelete(null)}
+                onClick={() => setConfirmDeleteId(null)}
                 className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-100"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDelete(confirmDelete)}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                disabled={deleting === confirmDelete}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
               >
-                {deleting === confirmDelete ? "Deleting..." : "Delete"}
+                Delete
               </button>
             </div>
           </div>
@@ -124,4 +158,43 @@ const SavedQuizzesPage = () => {
   );
 };
 
-export default SavedQuizzesPage;
+export default function SavedQuizzes() {
+  const [savedQuizzes, setSavedQuizzes] = useState<SavedQuiz[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSaved = async () => {
+      try {
+        const quizzes = await getSavedQuizzes();
+        setSavedQuizzes(quizzes);
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to load saved quizzes.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSaved();
+  }, []);
+
+  const handleDeleteFromList = (quizId: string) => {
+    setSavedQuizzes((prev) => prev.filter((q) => q._id !== quizId));
+  };
+
+  return (
+    <Suspense
+      fallback={<div className="p-8 text-center">Loading saved quizzes...</div>}
+    >
+      {loading ? (
+        <div className="p-8 text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#0a3264] mx-auto"></div>
+        </div>
+      ) : (
+        <DisplaySavedQuizzesPage
+          savedQuizzes={savedQuizzes}
+          onDeleteClick={handleDeleteFromList}
+        />
+      )}
+    </Suspense>
+  );
+}

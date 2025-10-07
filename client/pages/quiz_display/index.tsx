@@ -18,13 +18,14 @@ import { saveQuizToHistory } from "../../lib/functions/saveQuizToHistory";
 
 const QuizDisplayPage: React.FC = () => {
   const searchParams = useSearchParams();
+  const savedQuizId = searchParams.get("id");
   const questionType = searchParams.get("questionType") || "multichoice";
   const numQuestions = Number(searchParams.get("numQuestions")) || 1;
   const profession = searchParams.get("profession") || "general knowledge";
   const difficultyLevel = searchParams.get("difficultyLevel") || "easy";
   const audienceType = searchParams.get("audienceType") || "students";
   const customInstruction = searchParams.get("customInstruction") || "";
-  const userId = searchParams.get("userId") || "defaultUserId"; // ✅ dummy user until auth works
+  const userId = searchParams.get("userId") || "defaultUserId"; // dummy user until auth works
 
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [userAnswers, setUserAnswers] = useState<(string | number)[]>([]);
@@ -33,45 +34,69 @@ const QuizDisplayPage: React.FC = () => {
 
   useEffect(() => {
     const fetchQuizQuestions = async () => {
-      const basePayload = {
-        question_type: questionType,
-        num_questions: numQuestions,
-        profession: profession,
-        difficulty_level: difficultyLevel,
-        audience_type: audienceType,
-        custom_instruction: customInstruction,
-      };
-
       try {
-        const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
-          basePayload,
-        );
+        let questions: any[] = [];
 
-        console.log("🔥 RAW RESPONSE FROM BACKEND:", data);
+        if (savedQuizId) {
+          // Load saved quiz by id
+          const { data } = await axios.get(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/saved-quizzes/${savedQuizId}`,
+          );
 
-        // ✅ Notify user if AI is down
-        if (data?.ai_down) {
-          toast.error(data.notification_message || "AI model unavailable.", {
-            duration: 4000,
-          });
+          if (!data || !data.questions || data.questions.length === 0) {
+            throw new Error("No questions found for this saved quiz.");
+          }
+
+          questions = data.questions.map((q: any) => ({
+            ...q,
+            answer: q.answer || q.correct_answer,
+          }));
+
+          toast.success("Loaded saved quiz successfully!");
+        } else {
+          // Generate new quiz
+          const basePayload = {
+            question_type: questionType,
+            num_questions: numQuestions,
+            profession,
+            difficulty_level: difficultyLevel,
+            audience_type: audienceType,
+            custom_instruction: customInstruction,
+          };
+
+          const { data } = await axios.post(
+            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
+            basePayload,
+          );
+
+          if (data?.ai_down) {
+            toast.error(data.notification_message || "AI model unavailable.", {
+              duration: 4000,
+            });
+          }
+
+          questions = data?.questions || [];
+          if (!Array.isArray(questions) || questions.length === 0) {
+            throw new Error("No quiz questions returned.");
+          }
+
+          toast.success("Generated new quiz successfully!");
         }
 
-        const questions = data?.questions || [];
-        if (!Array.isArray(questions) || questions.length === 0) {
-          throw new Error("No quiz questions returned.");
-        }
-
+        // ✅ Update state
         setQuizQuestions(questions);
         setUserAnswers(Array(questions.length).fill(""));
-      } catch (error) {
+      } catch (error: any) {
         console.error("❌ Failed to fetch quiz questions:", error);
-        toast.error("Failed to fetch quiz questions. Please try again later.");
+        toast.error(error.message || "Failed to fetch quiz questions.");
+        setQuizQuestions([]);
+        setUserAnswers([]);
       }
     };
 
     fetchQuizQuestions();
   }, [
+    savedQuizId,
     questionType,
     numQuestions,
     profession,
@@ -96,7 +121,6 @@ const QuizDisplayPage: React.FC = () => {
         let userAnswer = userAnswers[i];
         let correctAnswer = correct;
 
-        // ✅ Keep true/false as binary values (1 or 0) for backend
         if (q.question_type === "true-false") {
           if (typeof userAnswer === "string") {
             userAnswer = userAnswer.toLowerCase() === "true" ? 1 : 0;
@@ -120,7 +144,6 @@ const QuizDisplayPage: React.FC = () => {
         payload,
       );
 
-      // Convert back to "true"/"false" for display
       const transformed = report.map((r: any) =>
         r.question_type === "true-false"
           ? {
@@ -134,7 +157,6 @@ const QuizDisplayPage: React.FC = () => {
       setQuizReport(transformed);
       setIsQuizChecked(true);
 
-      // ✅ Save quiz to history only after grading
       await saveQuizToHistory(userId, questionType, quizQuestions);
     } catch (err) {
       console.error("Error checking answers:", err);

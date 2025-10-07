@@ -6,7 +6,7 @@ import SidebarButton from "./SidebarButton";
 
 const SavedQuizzesButton = () => {
   return (
-    <Link href="/saved_quizzes">
+    <Link href="/saved_quiz">
       <SidebarButton label="Saved Quizzes" icon="💾" onClick={() => {}} />
     </Link>
   );
