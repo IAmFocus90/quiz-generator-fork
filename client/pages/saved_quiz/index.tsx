@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from "react";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 import {
   getSavedQuizzes,
   deleteSavedQuiz,
@@ -20,6 +21,7 @@ interface SavedQuiz {
   title: string;
   created_at: string;
   questions?: QuizQuestion[];
+  question_type?: string;
 }
 
 const DisplaySavedQuizzesPage: React.FC<{
@@ -27,6 +29,7 @@ const DisplaySavedQuizzesPage: React.FC<{
   onDeleteClick: (quizId: string) => void;
 }> = ({ savedQuizzes, onDeleteClick }) => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleConfirmDelete = async () => {
     if (!confirmDeleteId) return;
@@ -39,6 +42,17 @@ const DisplaySavedQuizzesPage: React.FC<{
       console.error(err);
       toast.error("Failed to delete quiz");
     }
+  };
+
+  const handleViewQuiz = (quiz: SavedQuiz) => {
+    // ✅ Pass quiz data as router state instead of URL reload
+    router.push(`/quiz_display?id=${quiz._id}`, {
+      scroll: true,
+    });
+
+    // Optionally, save quiz data temporarily in localStorage
+    // for retrieval in quiz_display page
+    localStorage.setItem("saved_quiz_view", JSON.stringify(quiz));
   };
 
   return (
@@ -81,9 +95,7 @@ const DisplaySavedQuizzesPage: React.FC<{
                       Delete
                     </button>
                     <button
-                      onClick={() =>
-                        (window.location.href = `/quiz_display?id=${quiz._id}`)
-                      }
+                      onClick={() => handleViewQuiz(quiz)}
                       className="text-sm bg-[#0a3264] hover:bg-[#082952] text-white px-3 py-1 rounded-lg font-semibold"
                     >
                       View Quiz
