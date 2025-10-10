@@ -5,8 +5,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import SignInButton from "./SignInButton";
 import SignUpButton from "./SignUpButton";
-import SignUpModal from "../(dashboard)/user/SignUpModal";
-import LoginModal from "../(dashboard)/user/SignInModal";
+import SignUpModal from "../auth/SignUpModal";
+import SignInModal from "../auth/SignInModal";
 import QuizDropdown from "./QuizDropdown";
 import PricingLink from "./PricingLink";
 import HowItWorksLink from "./HowItWorksLink";
@@ -135,7 +135,7 @@ const NavBar: React.FC = () => {
         onClose={() => setIsSignUpOpen(false)}
         switchToSignIn={switchToSignIn}
       />
-      <LoginModal
+      <SignInModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         switchToSignUp={switchToSignUp}
