@@ -271,12 +271,6 @@ async def refresh_token_service(refresh_token: str, users_collection: AsyncIOMot
         "token_type": "bearer"
     }
 
-    
-    # return {
-    #     "access_token": new_access_token,
-    #     "token_type": "bearer"
-    # }
-
 async def request_password_reset_service(request: RequestPasswordReset, email_svc: EmailService):
     user = await users_collection.find_one({"email": request.email})
     message = {"message": "If this email exists, reset instructions have been sent."}
