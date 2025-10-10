@@ -42,7 +42,8 @@ const QuizDisplayPage: React.FC = () => {
       };
 
       try {
-        const { data } = await axios.post(
+        // 🔹 Try AI source first
+        const aiResponse = await axios.post(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
           basePayload,
         );
