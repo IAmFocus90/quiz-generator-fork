@@ -16,7 +16,16 @@ from server.app.db.core.connection import users_collection, blacklisted_tokens_c
 from motor.motor_asyncio import AsyncIOMotorCollection
 from server.app.db.crud.user_crud import create_user, get_user_by_email
 from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, CreateUserRequest, PasswordResetRequest, PasswordResetResponse, RequestPasswordReset, ResendVerificationRequest, MessageResponse
-from .utils import verify_password, create_access_token, generate_otp, generate_verification_token, decode_verification_token
+from .utils import (
+    verify_password, 
+    create_access_token, 
+    generate_otp, 
+    generate_verification_token, 
+    decode_verification_token,     
+    create_refresh_token, 
+    decode_refresh_token,
+    hash_token,
+    verify_token_hash)
 from server.app.db.core.redis import get_redis_client
 from passlib.context import CryptContext
 from server.app.db.core.config import settings
@@ -163,19 +172,110 @@ async def verify_link_service(
     return {"message": "Email verified successfully!"}
 
 async def login_service(identifier: str, password: str, users_collection: AsyncIOMotorCollection):
+    """Handle user login and generate access + refresh tokens"""
+    
+    # Find user by email or username
     user = await users_collection.find_one({
         "$or": [{"email": identifier}, {"username": identifier}]
     })
+    
     if not user or not verify_password(password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
     if not user.get("is_verified", False):
         raise HTTPException(status_code=403, detail="Email not verified")
-    token = create_access_token({"sub": str(user["_id"])})
+    
+    user_id = str(user["_id"])
+    
+    access_token = create_access_token({"sub": user_id})
+    
+    refresh_token, jti, expires_at = create_refresh_token({"sub": user_id})
+    
+    hashed_refresh_token = hash_token(refresh_token)
+    
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {
+                "refresh_token": hashed_refresh_token,
+                "refresh_token_jti": jti,
+                "refresh_token_expires_at": expires_at
+            }
+        }
+    )
+    
     return {
         "message": "Login successful",
-        "access_token": token,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+
+async def refresh_token_service(refresh_token: str, users_collection: AsyncIOMotorCollection):
+    try:
+        payload = decode_refresh_token(refresh_token)
+    except HTTPException:
+        raise
+    
+    user_id = payload.get("sub")
+    token_jti = payload.get("jti")
+    
+    if not user_id or not token_jti:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    
+    from bson import ObjectId
+    user = await users_collection.find_one({"_id": ObjectId(user_id)})
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
+    stored_token_hash = user.get("refresh_token")
+    stored_jti = user.get("refresh_token_jti")
+    token_expires_at = user.get("refresh_token_expires_at")
+    
+    if not stored_token_hash or not stored_jti:
+        raise HTTPException(status_code=401, detail="No refresh token found")
+    
+    if not verify_token_hash(refresh_token, stored_token_hash):
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
+    if token_jti != stored_jti:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    
+    if token_expires_at:
+        if token_expires_at.tzinfo is None:
+            token_expires_at = token_expires_at.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) > token_expires_at:
+            raise HTTPException(status_code=401, detail="Refresh token expired")
+
+    
+    new_access_token = create_access_token({"sub": user_id})
+
+    new_refresh_token, new_jti, new_expires_at = create_refresh_token({"sub": user_id})
+    hashed_new_refresh_token = hash_token(new_refresh_token)
+    
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {
+                "refresh_token": hashed_new_refresh_token,
+                "refresh_token_jti": new_jti,
+                "refresh_token_expires_at": new_expires_at
+            }
+        }
+    )
+    
+    return {
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer"
+    }
+
+    
+    # return {
+    #     "access_token": new_access_token,
+    #     "token_type": "bearer"
+    # }
 
 async def request_password_reset_service(request: RequestPasswordReset, email_svc: EmailService):
     user = await users_collection.find_one({"email": request.email})
