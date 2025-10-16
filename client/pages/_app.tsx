@@ -2,6 +2,8 @@
 import type { AppProps } from "next/app";
 import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
+import SplashScreen from "../components/splash_screen/SplashScreen";
+import { AuthProvider } from "../contexts/authContext"; //
 import "../components/ui/global.css";
 
 export default function MyApp({ Component, pageProps }: AppProps) {
@@ -17,9 +19,12 @@ export default function MyApp({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <>
+    <AuthProvider>
+      {" "}
+      {/* Wrap everything in AuthProvider */}
+      <SplashScreen />
       <Component {...pageProps} />
       <Toaster position="top-right" />
-    </>
+    </AuthProvider>
   );
 }
