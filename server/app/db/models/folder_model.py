@@ -2,14 +2,16 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
+from typing import Any
 
 class FolderModel(BaseModel):
     id: Optional[str] = Field(default_factory=lambda: str(ObjectId()))
     user_id: str
     name: str
-    quizzes: List[str] = []  # store quiz_ids from saved_quizzes
+    quizzes: List[Any] = []  # <-- allow full quiz objects, not just IDs
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 
     class Config:
         orm_mode = True

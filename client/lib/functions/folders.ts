@@ -30,7 +30,13 @@ export const deleteFolder = async (folderId: string) => {
 
 // ✅ Add quiz to folder
 export const addQuizToFolder = async (folderId: string, quiz: any) => {
-  const res = await axios.post(`${API_BASE}/${folderId}/add_quiz`, { quiz });
+  const quizId = quiz._id || quiz.id || quiz.quiz_id; // ✅ handle all cases
+  console.log("Adding quiz to folder:", { quiz_id: quizId });
+
+  const res = await axios.post(`${API_BASE}/${folderId}/add_quiz`, {
+    quiz_id: quizId,
+  });
+
   return res.data;
 };
 

@@ -83,6 +83,7 @@ const AddToFolderModal = ({
 
       // Add each selected quiz
       for (const quizId of selectedQuizIds) {
+        console.log("Full quiz object before adding to folder:", quizId);
         await addQuizToFolder(targetFolderId!, { quiz_id: quizId });
       }
 
