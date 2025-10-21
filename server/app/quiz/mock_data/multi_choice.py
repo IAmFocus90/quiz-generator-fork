@@ -1,6 +1,7 @@
 import string
 
-mock_multiple_choice_questions = [
+# Raw mock data
+_raw_mock_questions = [
     {
         "question": "What is the capital of France?",
         "options": ["Paris", "London", "Berlin", "Rome"],
@@ -53,21 +54,23 @@ mock_multiple_choice_questions = [
     },
 ]
 
+def mock_multiple_choice_questions():
+    """Return mock questions with letter-prefixed options."""
+    questions = []
 
-for q in mock_multiple_choice_questions:
-    options = q["options"]
-    answer = q["answer"]
+    for q in _raw_mock_questions:
+        options = q["options"]
+        answer = q["answer"]
 
-    # Create prefixed options
-    prefixed_options = [f"{letter}) {opt}" for letter, opt in zip(string.ascii_uppercase, options)]
-    q["options"] = prefixed_options
+        # Add letter prefixes to options (A), (B), (C), (D)
+        prefixed_options = [f"{letter}) {opt}" for letter, opt in zip(string.ascii_uppercase, options)]
 
-    # Match the correct answer with the prefixed one
-    for opt in prefixed_options:
-        if opt.endswith(answer):
-            q["answer"] = opt
-            break
+        # Match correct answer with its prefixed version
+        updated_question = {
+            "question": q["question"],
+            "options": prefixed_options,
+            "answer": next((opt for opt in prefixed_options if opt.endswith(answer)), answer)
+        }
+        questions.append(updated_question)
 
-# === Optional: Print updated data ===
-from pprint import pprint
-pprint(mock_multiple_choice_questions)
+    return questions
