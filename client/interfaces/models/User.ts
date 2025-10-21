@@ -10,7 +10,18 @@ export interface User {
 export interface LoginResponse {
   message: string;
   access_token: string;
+  refresh_token: string;
   token_type: string;
+}
+
+export interface RefreshTokenPayload {
+  refresh_token: string;
+}
+
+export interface RefreshTokenResponse {
+  access_token: string;
+  token_type: string;
+  refresh_token?: string;
 }
 
 export interface RegisterResponse {
