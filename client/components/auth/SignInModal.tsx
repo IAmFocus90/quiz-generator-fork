@@ -4,6 +4,7 @@ import { login } from "../../lib";
 import { EMAIL_REGEX } from "../../constants/patterns/patterns";
 import { ROUTES } from "../../constants/patterns/routes";
 import { LoginPayload, LoginResponse } from "../../interfaces/models/User";
+import { useAuth } from "../../contexts/authContext";
 
 interface SignInModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ const SignInModal: React.FC<SignInModalProps> = ({
   switchToSignUp,
 }) => {
   const router = useRouter();
+  const { login: authLogin } = useAuth();
   const [identifier, setIdentifier] = useState(""); // email or username
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,19 +50,25 @@ const SignInModal: React.FC<SignInModalProps> = ({
 
       const response: LoginResponse = await login(payload);
 
-      // Store token if needed (adjust based on your auth strategy)
-      if (response.access_token) {
-        localStorage.setItem("access_token", response.access_token);
-        localStorage.setItem("token_type", response.token_type);
-      }
+      // Save both access and refresh tokens using auth context
+      if (response.access_token && response.refresh_token) {
+        await authLogin(
+          response.access_token,
+          response.refresh_token,
+          response.token_type,
+        );
 
-      // Redirect to profile or home after successful login
-      router.push(ROUTES.PROFILE || "/profile");
-      onClose();
+        // Navigate to profile
+        router.push(ROUTES.PROFILE || "/profile");
+        onClose();
+      } else {
+        setError("Invalid response from server");
+      }
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.message ||
         error?.response?.data?.detail ||
+        error?.message ||
         "Invalid credentials. Please try again.";
       setError(errorMessage);
     } finally {
@@ -82,7 +90,6 @@ const SignInModal: React.FC<SignInModalProps> = ({
     }
   };
 
-  // Check if identifier looks like an email
   const isEmail = identifier.includes("@");
 
   return (

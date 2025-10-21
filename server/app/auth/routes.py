@@ -8,6 +8,7 @@ from ..auth.services import (
     verify_link_service,
     resend_verification_email_service,
     login_service,
+    refresh_token_service,
     request_password_reset_service,
     reset_password_service,
     logout_service
@@ -16,7 +17,12 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, ResendVerificationRequest
 from server.app.db.models.user_models import UserDB
 from server.app.dependancies import get_current_user
-from server.app.auth.models import LoginRequestModel, LoginResponse
+from server.app.auth.models import (
+    LoginRequestModel, 
+    LoginResponse,
+    RefreshTokenResponse,
+    RefreshTokenRequest
+)
 from server.app.email_platform.deps import get_email_service
 from server.app.email_platform.service import EmailService
 
@@ -61,11 +67,24 @@ async def resend_verification(
 @router.post("/login", response_model=LoginResponse)
 async def login(
     request_data: LoginRequestModel, 
-    request: Request):
+    request: Request
+):
     users_collection = request.app.state.users_collection
     return await login_service(
         identifier=request_data.identifier,
         password=request_data.password,
+        users_collection=users_collection
+    )
+
+@router.post("/refresh", response_model=RefreshTokenResponse)
+async def refresh_token(
+    request_data: RefreshTokenRequest,
+    request: Request
+):
+    """Refresh access token using refresh token"""
+    users_collection = request.app.state.users_collection
+    return await refresh_token_service(
+        refresh_token=request_data.refresh_token,
         users_collection=users_collection
     )
 
