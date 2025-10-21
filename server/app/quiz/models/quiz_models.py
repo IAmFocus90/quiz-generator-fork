@@ -21,4 +21,6 @@ class QuizQuestion(BaseModel):
 class QuizResponse(BaseModel):
     source: str
     questions: List[QuizQuestion]
+    ai_down: Optional[bool] = False
+    notification_message: Optional[str] = None
 

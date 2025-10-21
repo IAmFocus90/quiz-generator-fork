@@ -20,6 +20,9 @@ ai_generated_quizzes_collection = database["ai_generated_quizzes"]
 
 quiz_categories_collection = database["quizzes_category"]
 blacklisted_tokens_collection = database["blacklisted_tokens"]
+ai_generated_quizzes_collection = database["ai_generated_quizzes"]
+
+
 
 async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):
     await users_collection.create_index("email", unique=True) 
@@ -56,3 +59,5 @@ def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
     return ai_generated_quizzes_collection
 def get_blacklisted_tokens_collection() -> AsyncIOMotorCollection:
     return blacklisted_tokens_collection
+def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
+    return ai_generated_quizzes_collection
