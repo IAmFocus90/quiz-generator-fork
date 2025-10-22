@@ -21,7 +21,12 @@ export default function QuizGenerationSection({
   setQuestionType,
   difficultyLevel,
   setDifficultyLevel,
-}: QuizGenerationSectionProps) {
+  token,
+  setToken,
+}: QuizGenerationSectionProps & {
+  token: string;
+  setToken: (val: string) => void;
+}) {
   return (
     <section className="w-full max-w-3xl mx-auto bg-white shadow rounded-xl px-6 py-8">
       <h2 className="text-2xl font-semibold text-[#2C3E50] mb-2">
@@ -45,6 +50,20 @@ export default function QuizGenerationSection({
             placeholder="Enter the concept/context here"
             className="w-full border border-gray-300 rounded-md px-4 py-2 placeholder-gray-400 focus:outline-none focus:ring focus:ring-blue-500"
             required
+          />
+        </div>
+
+        {/* Token Field */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-semibold text-[#2C3E50] mb-1">
+            API token
+          </label>
+          <input
+            type="text"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="Enter your API token"
+            className="w-full border border-gray-300 rounded-md px-4 py-2 placeholder-gray-400 focus:outline-none focus:ring focus:ring-blue-500"
           />
         </div>
 

@@ -5,9 +5,10 @@ import functools
 from typing import Any, Dict, List, Optional
 from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
+from ....app.db.crud.token_crud import get_user_token
 
 load_dotenv()
-client = InferenceClient(token=os.getenv("HUGGINGFACEHUB_API_TOKEN"))
+HF_FALLBACK_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # =====================================================
 # =============== PARSING FUNCTIONS ===================
@@ -169,20 +170,33 @@ async def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, A
     """
     loop = asyncio.get_event_loop()
 
-    # Run the blocking HF client in a thread pool to avoid blocking FastAPI’s event loop
+    # 1. Get token from DB (for dev, hardcode user_id)
+    user_id = "dev_user"  # TODO: replace with real auth later
+    user_token = await get_user_token(user_id)
+
+    # 2. Use user’s token if exists, otherwise fallback
+    final_token = user_token if user_token else HF_FALLBACK_TOKEN
+
+    # 3. Build client with the chosen token
+    client = InferenceClient(token=final_token)
+
+    # 4. Run HuggingFace call
     response = await loop.run_in_executor(
         None,
         functools.partial(
             client.chat.completions.create,
             model="deepseek-ai/DeepSeek-V3-0324",
-            messages=[{"role": "user", "content": build_prompt(
-                payload.get("profession", "General Knowledge"),
-                payload.get("question_type", "multichoice").lower(),
-                payload.get("difficulty_level", "medium"),
-                int(payload.get("num_questions", 5)),
-                payload.get("audience_type", "general"),
-                payload.get("custom_instruction"),
-            )}],
+            messages=[{
+                "role": "user",
+                "content": build_prompt(
+                    payload.get("profession", "General Knowledge"),
+                    payload.get("question_type", "multichoice").lower(),
+                    payload.get("difficulty_level", "medium"),
+                    int(payload.get("num_questions", 5)),
+                    payload.get("audience_type", "general"),
+                    payload.get("custom_instruction"),
+                )
+            }],
             max_tokens=2048,
             temperature=0.7,
         ),
@@ -191,6 +205,7 @@ async def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, A
     response_text = response.choices[0].message.content
     print("\n--- Raw Model Response ---\n", response_text, "\n--------------------------\n")
 
+    # 5. Parse response
     qtype = payload.get("question_type", "multichoice").lower()
     if qtype == "multichoice":
         questions = parse_multichoice(response_text)
@@ -207,5 +222,6 @@ async def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, A
         "message": "Quiz generated successfully",
         "questions": questions,
         "raw_response": response_text,
+        "source": "user_token" if user_token else "default_env",  # 👈 helpful metadata
         **payload,
     }
