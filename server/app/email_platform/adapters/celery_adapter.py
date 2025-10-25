@@ -1,6 +1,7 @@
 import logging
 from ..models import EmailPayload, SendResult
 from ..renderer import render_email
+from celery.exceptions import CeleryError
 
 logger = logging.getLogger(__name__)
 
@@ -9,6 +10,13 @@ class CeleryAdapter:
         self.celery_app = celery_app
 
     async def send(self, payload: EmailPayload) -> SendResult:
+        try:
+            ping_result = self.celery_app.control.ping(timeout=1)
+            if not ping_result:
+                raise RuntimeError("No Celery workers available")
+        except CeleryError as e:
+            raise RuntimeError(f"Celery check failed: {e}")
+
         msg = render_email(payload.template_id, payload.to, payload.template_vars)
         subject = msg["Subject"]
         body = msg.get_payload()
@@ -21,4 +29,3 @@ class CeleryAdapter:
         )
         logger.info(f"[EmailPlatform] Enqueued Celery task for {payload.to}")
         return SendResult(ok=True, adapter="celery")
-
