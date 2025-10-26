@@ -48,6 +48,8 @@ const QuizDisplayPage: React.FC = () => {
           basePayload,
         );
 
+        const data = aiResponse.data;
+
         console.log("🔥 RAW RESPONSE FROM BACKEND:", data);
 
         // ✅ Notify user if AI is down

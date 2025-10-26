@@ -13,7 +13,8 @@ class CeleryAdapter:
         try:
             ping_result = self.celery_app.control.ping(timeout=1)
             if not ping_result:
-                raise RuntimeError("No Celery workers available")
+                logger.info("No Celery workers available")
+                raise RuntimeError("Celery workers down or unavailable")
         except CeleryError as e:
             raise RuntimeError(f"Celery check failed: {e}")
 
