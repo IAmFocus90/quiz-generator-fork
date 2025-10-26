@@ -75,6 +75,7 @@ services:
       - ./server:/server
     environment:
       - MONGO_URI=mongodb://mongodb:27017/quizApp_db
+      - FERNET_KEY=${FERNET_KEY}
     command: ["python", "-m", "app.seed"]
     depends_on:
       - server
