@@ -2,7 +2,7 @@ from email.mime.text import MIMEText
 import os
 from server.app.email_platform.platform_email_utils import compose_quiz_email, sender_email
 
-BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").rstrip("/")
 
 def render_email(template_id: str, to: str, vars: dict) -> MIMEText:
     """
@@ -19,7 +19,7 @@ def render_email(template_id: str, to: str, vars: dict) -> MIMEText:
     if template_id == "verification":
         code  = vars.get("code", "")
         token = vars.get("token", "")
-        verify_link = f"{BACKEND_URL}/verify-link/?token={token}"
+        verify_link = f"{ALLOWED_ORIGINS}/auth/verify-email/?token={token}"
         subject = "Please verify your account on Quiz Generator"
         body = f"""Thank you for registering!
 
@@ -30,7 +30,7 @@ To verify your email, you can either:
     elif template_id == "password_reset":
         code  = vars.get("code", "")
         token = vars.get("token", "")
-        reset_link = f"{BACKEND_URL}/reset-password-link/?token={token}"
+        reset_link = f"{ALLOWED_ORIGINS}/auth/reset-password/?token={token}"
         subject = "Reset your password on Quiz Generator"
         body = f"""You requested to reset your password.
 

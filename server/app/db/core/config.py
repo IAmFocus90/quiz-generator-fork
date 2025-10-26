@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     VERIFICATION_TOKEN_EXPIRE_HOURS: int = 2
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     email_sender: str
     email_password: str

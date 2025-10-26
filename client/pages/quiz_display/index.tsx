@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import axios from "axios";
 import { useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 import {
   CheckButton,
   NewQuizButton,
@@ -18,7 +19,11 @@ const QuizDisplayPage: React.FC = () => {
   const searchParams = useSearchParams();
   const questionType = searchParams.get("questionType") || "multichoice";
   const numQuestions = Number(searchParams.get("numQuestions")) || 1;
-  const userId = searchParams.get("userId") || "defaultUserId"; // ✅ (for now, until auth works)
+  const profession = searchParams.get("profession") || "general knowledge";
+  const difficultyLevel = searchParams.get("difficultyLevel") || "easy";
+  const audienceType = searchParams.get("audienceType") || "students";
+  const customInstruction = searchParams.get("customInstruction") || "";
+  const userId = searchParams.get("userId") || "defaultUserId"; // ✅ dummy user until auth works
 
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [userAnswers, setUserAnswers] = useState<(string | number)[]>([]);
@@ -27,25 +32,53 @@ const QuizDisplayPage: React.FC = () => {
 
   useEffect(() => {
     const fetchQuizQuestions = async () => {
-      try {
-        const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
-          {
-            question_type: questionType,
-            num_questions: numQuestions,
-          },
-        );
-        setQuizQuestions(data);
-        setUserAnswers(Array(data.length).fill(""));
+      const basePayload = {
+        question_type: questionType,
+        num_questions: numQuestions,
+        profession: profession,
+        difficulty_level: difficultyLevel,
+        audience_type: audienceType,
+        custom_instruction: customInstruction,
+      };
 
-        // ✅ Save to history after generating the quiz
-        await saveQuizToHistory(userId, questionType, data);
+      try {
+        // 🔹 Try AI source first
+        const aiResponse = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
+          basePayload,
+        );
+
+        console.log("🔥 RAW RESPONSE FROM BACKEND:", data);
+
+        // ✅ Notify user if AI is down
+        if (data?.ai_down) {
+          toast.error(data.notification_message || "AI model unavailable.", {
+            duration: 4000,
+          });
+        }
+
+        const questions = data?.questions || [];
+        if (!Array.isArray(questions) || questions.length === 0) {
+          throw new Error("No quiz questions returned.");
+        }
+
+        setQuizQuestions(questions);
+        setUserAnswers(Array(questions.length).fill(""));
       } catch (error) {
-        console.error("Error fetching quiz questions:", error);
+        console.error("❌ Failed to fetch quiz questions:", error);
+        toast.error("Failed to fetch quiz questions. Please try again later.");
       }
     };
+
     fetchQuizQuestions();
-  }, [questionType, numQuestions]);
+  }, [
+    questionType,
+    numQuestions,
+    profession,
+    difficultyLevel,
+    audienceType,
+    customInstruction,
+  ]);
 
   const handleAnswerChange = (index: number, answer: string | number) => {
     const updated = [...userAnswers];
@@ -59,17 +92,35 @@ const QuizDisplayPage: React.FC = () => {
         const correct = q.answer ?? q.correct_answer;
         if (correct === undefined)
           throw new Error(`No answer for ${q.question}`);
+
+        let userAnswer = userAnswers[i];
+        let correctAnswer = correct;
+
+        // ✅ Keep true/false as binary values (1 or 0) for backend
+        if (q.question_type === "true-false") {
+          if (typeof userAnswer === "string") {
+            userAnswer = userAnswer.toLowerCase() === "true" ? 1 : 0;
+          }
+          if (typeof correctAnswer === "string") {
+            correctAnswer = correctAnswer.toLowerCase() === "true" ? 1 : 0;
+          }
+        }
+
         return {
           question: q.question,
-          user_answer: userAnswers[i].toString(),
-          correct_answer: correct.toString(),
+          user_answer: userAnswer,
+          correct_answer: correctAnswer,
           question_type: q.question_type,
+          source: q.source || "unknown",
         };
       });
+
       const { data: report } = await axios.post(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/grade-answers`,
         payload,
       );
+
+      // Convert back to "true"/"false" for display
       const transformed = report.map((r: any) =>
         r.question_type === "true-false"
           ? {
@@ -79,10 +130,15 @@ const QuizDisplayPage: React.FC = () => {
             }
           : r,
       );
+
       setQuizReport(transformed);
       setIsQuizChecked(true);
+
+      // ✅ Save quiz to history only after grading
+      await saveQuizToHistory(userId, questionType, quizQuestions);
     } catch (err) {
       console.error("Error checking answers:", err);
+      toast.error("Failed to grade your quiz. Please try again.");
     }
   };
 
