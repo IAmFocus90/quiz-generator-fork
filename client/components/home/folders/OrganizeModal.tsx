@@ -191,7 +191,7 @@ function OrganizeModal<
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 text-sm bg-navy-900 text-white rounded-lg hover:bg-navy-800"
+                className="bg-[#0a3264] hover:bg-[#082952] text-white font-semibold px-6 py-2 rounded-xl shadow-md transition text-sm"
               >
                 Save Order
               </button>
