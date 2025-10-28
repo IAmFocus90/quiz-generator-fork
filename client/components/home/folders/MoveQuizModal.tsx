@@ -12,14 +12,16 @@ interface MoveQuizModalProps {
   isOpen: boolean;
   onClose: () => void;
   quiz: any | null;
-  sourceFolderId?: string; // optional source folder
+  sourceFolderId: string;
+  onQuizMoved?: () => void;
 }
 
 const MoveQuizModal: React.FC<MoveQuizModalProps> = ({
   isOpen,
   onClose,
   quiz,
-  sourceFolderId = "",
+  sourceFolderId,
+  onQuizMoved,
 }) => {
   const [folders, setFolders] = useState<any[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string>("");
@@ -54,16 +56,23 @@ const MoveQuizModal: React.FC<MoveQuizModalProps> = ({
       setLoading(true);
       let targetFolderId = selectedFolderId;
 
+      // ✅ Create new folder if user typed a name
       if (isCreatingNew && newFolderName.trim()) {
         const newFolder = await createFolder(userId, newFolderName);
         targetFolderId = newFolder._id;
       }
 
+      // ✅ Move quiz
       await moveQuiz(quiz._id, sourceFolderId, targetFolderId);
+
       toast.success("Quiz moved successfully");
+
+      // ✅ Trigger folder refresh after successful move
+      if (onQuizMoved) onQuizMoved();
+
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error("Error moving quiz:", err);
       toast.error("Failed to move quiz");
     } finally {
       setLoading(false);
@@ -71,8 +80,15 @@ const MoveQuizModal: React.FC<MoveQuizModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-      <div className="bg-white rounded-2xl shadow-lg w-full max-w-md p-6 relative">
+    <div
+      className={`fixed inset-0 bg-black/40 z-50 flex justify-center items-center overflow-y-auto transition-opacity duration-300 ${
+        isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+      }`}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-lg w-full max-w-md p-6 my-10 relative overflow-y-auto max-h-[90vh] animate-fadeIn">
         <h2 className="text-xl font-semibold text-navy-800 mb-4">Move Quiz</h2>
 
         {!isCreatingNew && (
@@ -82,22 +98,24 @@ const MoveQuizModal: React.FC<MoveQuizModalProps> = ({
                 No folders available.
               </p>
             ) : (
-              folders.map((folder) => (
-                <div
-                  key={folder._id}
-                  className={`p-3 border rounded-xl cursor-pointer ${
-                    selectedFolderId === folder._id
-                      ? "border-navy-600 bg-blue-50"
-                      : "border-gray-200 hover:bg-gray-50"
-                  }`}
-                  onClick={() => setSelectedFolderId(folder._id)}
-                >
-                  <p className="font-medium text-navy-700">{folder.name}</p>
-                  <p className="text-xs text-gray-500">
-                    {folder.quizzes?.length || 0} quizzes
-                  </p>
-                </div>
-              ))
+              <div className="space-y-2 overflow-y-auto max-h-[50vh] pr-1">
+                {folders.map((folder) => (
+                  <div
+                    key={folder._id}
+                    className={`p-3 border rounded-xl cursor-pointer ${
+                      selectedFolderId === folder._id
+                        ? "border-navy-600 bg-blue-50"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                    onClick={() => setSelectedFolderId(folder._id)}
+                  >
+                    <p className="font-medium text-navy-700">{folder.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {folder.quizzes?.length || 0} quizzes
+                    </p>
+                  </div>
+                ))}
+              </div>
             )}
             <button
               onClick={() => setIsCreatingNew(true)}
@@ -137,13 +155,15 @@ const MoveQuizModal: React.FC<MoveQuizModalProps> = ({
           >
             Cancel
           </button>
-          <button
-            onClick={handleMove}
-            className="px-4 py-2 rounded-lg bg-navy-600 text-white hover:bg-navy-700"
-            disabled={loading}
-          >
-            {loading ? "Moving..." : "Move"}
-          </button>
+          {(selectedFolderId || (isCreatingNew && newFolderName.trim())) && (
+            <button
+              onClick={handleMove}
+              className="bg-[#0a3264] hover:bg-[#082952] text-white font-semibold px-6 py-2 rounded-xl shadow-md transition text-sm"
+              disabled={loading}
+            >
+              {loading ? "Moving..." : "Move"}
+            </button>
+          )}
         </div>
       </div>
     </div>

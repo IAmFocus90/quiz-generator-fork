@@ -55,16 +55,17 @@ export const getFolderById = async (folderId: string) => {
   return res.data;
 };
 
-// ✅ NEW: Move quiz between folders
+// Move quiz between folders
 export const moveQuiz = async (
   quizId: string,
-  fromFolderId: string,
-  toFolderId: string,
+  sourceFolderId: string,
+  targetFolderId: string,
 ) => {
+  console.log("➡️ Moving quiz:", { quizId, sourceFolderId, targetFolderId });
   const res = await axios.patch(`${API_BASE}/move_quiz`, {
     quiz_id: quizId,
-    from_folder_id: fromFolderId,
-    to_folder_id: toFolderId,
+    from_folder_id: sourceFolderId,
+    to_folder_id: targetFolderId,
   });
   return res.data;
 };

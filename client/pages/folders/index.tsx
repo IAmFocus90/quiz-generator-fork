@@ -9,7 +9,11 @@ import FolderOptionsMenu from "../../components/home/folders/FolderOptionsMenu";
 import FolderModal from "../../components/home/folders/FolderModal";
 import OrganizeModal from "../../components/home/folders/OrganizeModal";
 import ConfirmDeleteModal from "../../components/home/folders/ConfirmDeleteModal";
-import { getUserFolders } from "../../lib/functions/folders";
+import {
+  getUserFolders,
+  deleteFolder,
+  bulkDeleteFolders,
+} from "../../lib/functions/folders";
 
 interface Folder {
   _id: string;
@@ -26,6 +30,32 @@ const FoldersPage = () => {
   const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
   const userId = "dummy_user_123"; // temporary placeholder
 
+  // Single folder delete
+  const handleDeleteFolder = async (folderId: string) => {
+    try {
+      await deleteFolder(folderId);
+      setFolders((prev) => prev.filter((f) => f._id !== folderId));
+      toast.success("Folder deleted successfully");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete folder");
+    }
+  };
+
+  // Bulk folder delete
+  const handleBulkDeleteFolders = async (folderIds: string[]) => {
+    if (!folderIds.length) return;
+    try {
+      await bulkDeleteFolders(folderIds);
+      setFolders((prev) => prev.filter((f) => !folderIds.includes(f._id)));
+      toast.success("Selected folders deleted successfully");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to delete folders");
+    }
+  };
+
+  // Fetch user folders
   useEffect(() => {
     const fetchFolders = async () => {
       try {
@@ -49,7 +79,9 @@ const FoldersPage = () => {
           <FolderOptionsMenu
             onCreate={() => setShowCreateModal(true)}
             onOrganize={() => setShowOrganizeModal(true)}
-            onDelete={() => setShowDeleteModal(true)}
+            onDelete={() =>
+              selectedFolders.length > 0 && setShowDeleteModal(true)
+            }
           />
         </div>
 
@@ -87,6 +119,7 @@ const FoldersPage = () => {
             onFolderCreated={(newFolder) => setFolders([...folders, newFolder])}
           />
         )}
+
         {showOrganizeModal && (
           <OrganizeModal
             title="Organize Folders"
@@ -96,14 +129,21 @@ const FoldersPage = () => {
             renderItem={(folder) => <span>{folder.name}</span>}
           />
         )}
+
         {showDeleteModal && (
           <ConfirmDeleteModal
             selectedItems={selectedFolders}
             type="folder"
             onClose={() => setShowDeleteModal(false)}
-            onDeleted={(deletedIds) =>
-              setFolders(folders.filter((f) => !deletedIds.includes(f._id)))
-            }
+            onDeleted={(deletedIds) => {
+              if (deletedIds.length === 1) {
+                handleDeleteFolder(deletedIds[0]);
+              } else {
+                handleBulkDeleteFolders(deletedIds);
+              }
+              setShowDeleteModal(false);
+              setSelectedFolders([]);
+            }}
           />
         )}
       </main>

@@ -84,33 +84,42 @@ async def bulk_remove_quizzes_from_folder(folder_id: str, quiz_ids: list[str]):
     return serialize_folder(updated_folder)
 
 
-
 # 🟢 Move Quiz Between Folders
 async def move_quiz_between_folders(source_folder_id: str, target_folder_id: str, quiz_id: str):
-    # Remove from source folder
-    await folders_collection.update_one(
-        {"_id": ObjectId(source_folder_id)},
-        {
-            "$pull": {"quizzes": {"_id": quiz_id}},  # match by _id
-            "$set": {"updated_at": datetime.utcnow()},
-        },
-    )
+    # 🧩 Validate IDs
+    if not source_folder_id or not target_folder_id or not quiz_id:
+        raise ValueError("Missing required folder or quiz IDs for move operation.")
 
-    # Add to target folder
-    quiz_to_move = await folders_collection.find_one(
+    # ✅ Fetch quiz to move *before* removing it
+    source_folder = await folders_collection.find_one(
         {"_id": ObjectId(source_folder_id), "quizzes._id": quiz_id},
         {"quizzes.$": 1}
     )
 
-    if quiz_to_move and "quizzes" in quiz_to_move:
-        await folders_collection.update_one(
-            {"_id": ObjectId(target_folder_id)},
-            {
-                "$push": {"quizzes": quiz_to_move["quizzes"][0]},
-                "$set": {"updated_at": datetime.utcnow()},
-            },
-        )
+    if not source_folder or "quizzes" not in source_folder:
+        raise ValueError("Quiz not found in source folder.")
 
+    quiz_to_move = source_folder["quizzes"][0]
+
+    # 🟠 Remove from source
+    await folders_collection.update_one(
+        {"_id": ObjectId(source_folder_id)},
+        {
+            "$pull": {"quizzes": {"_id": quiz_id}},
+            "$set": {"updated_at": datetime.utcnow()},
+        },
+    )
+
+    # 🟢 Add to target
+    await folders_collection.update_one(
+        {"_id": ObjectId(target_folder_id)},
+        {
+            "$push": {"quizzes": quiz_to_move},
+            "$set": {"updated_at": datetime.utcnow()},
+        },
+    )
+
+    # ✅ Return updated target folder
     updated_target = await get_folder_by_id(target_folder_id)
     return serialize_folder(updated_target)
 
@@ -142,4 +151,4 @@ async def bulk_delete_folders(folder_ids: list[str]):
     result = await folders_collection.delete_many({
         "_id": {"$in": [ObjectId(fid) for fid in folder_ids]}
     })
-    return {"deleted_count": result.deleted_count}
+    return result.deleted_count

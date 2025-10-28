@@ -79,7 +79,7 @@ const FolderModal: React.FC<FolderModalProps> = ({
           </button>
           <button
             onClick={handleSubmit}
-            className="px-4 py-2 bg-navy-600 text-white rounded-lg hover:bg-navy-700"
+            className="bg-[#0a3264] hover:bg-[#082952] text-white font-semibold px-6 py-2 rounded-xl shadow-md transition text-sm"
             disabled={loading}
           >
             {loading ? "Saving..." : "Done"}

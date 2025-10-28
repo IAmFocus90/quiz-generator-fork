@@ -27,9 +27,20 @@ const FolderView = () => {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState<string | null>(null);
 
+  // ✅ Function to re-fetch folder data
+  const refreshFolderData = async () => {
+    if (!folderId) return;
+    try {
+      const res = await getFolderById(folderId as string);
+      setFolder(res);
+    } catch (err) {
+      console.error("Failed to fetch folder:", err);
+    }
+  };
+
+  // ✅ Fetch folder when mounted or folderId changes
   useEffect(() => {
     if (!folderId) return;
-
     const fetchFolder = async () => {
       try {
         setLoading(true);
@@ -229,11 +240,13 @@ const FolderView = () => {
       {/* FOOTER */}
       <Footer />
 
-      {/* Move Quiz Modal */}
+      {/* ✅ Move Quiz Modal */}
       <MoveQuizModal
         isOpen={moveModalOpen}
         onClose={() => setMoveModalOpen(false)}
         quiz={selectedQuiz}
+        sourceFolderId={folderId as string}
+        onQuizMoved={refreshFolderData} // 👈 instant refresh
       />
 
       {/* Confirm Delete Modal */}

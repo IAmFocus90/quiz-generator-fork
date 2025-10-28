@@ -24,3 +24,9 @@ class FolderCreate(BaseModel):
 class FolderUpdate(BaseModel):
     name: Optional[str] = None
     quizzes: Optional[List[str]] = None
+
+class BulkDeleteFoldersRequest(BaseModel):
+    folder_ids: List[str]
+
+class BulkRemoveRequest(BaseModel):
+    quiz_ids: List[str]

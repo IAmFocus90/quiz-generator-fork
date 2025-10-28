@@ -17,7 +17,7 @@ from ....app.db.crud.folder_crud import (
     bulk_remove_quizzes_from_folder,
 )
 from ....app.db.core.connection import get_saved_quizzes_collection
-from ....app.db.models.folder_model import FolderCreate
+from ....app.db.models.folder_model import FolderCreate, BulkDeleteFoldersRequest, BulkRemoveRequest
 
 router = APIRouter(tags=["Folders"])
 
@@ -115,6 +115,13 @@ async def rename_existing_folder(folder_id: str, new_name: str):
     await rename_folder(folder_id, new_name)
     return {"message": "Folder renamed successfully"}
 
+@router.delete("/bulk_delete")
+async def bulk_delete_folder(req: BulkDeleteFoldersRequest = Body(...)):
+    try:
+        deleted_count = await bulk_delete_folders(req.folder_ids)  # make sure your CRUD is async
+        return {"deleted": deleted_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{folder_id}")
 async def delete_existing_folder(folder_id: str):
@@ -151,19 +158,8 @@ async def move_quiz(request: MoveQuizRequest):
     )
     return {"message": "Quiz moved successfully", "result": result}
 
-
-# ---------- ✅ NEW: Bulk Delete Folders ----------
-@router.delete("/bulk_delete")
-async def bulk_delete(request: BulkDeleteRequest = Body(...)):
-    deleted = await bulk_delete_folders(request.folder_ids)
-    return {"message": "Folders deleted successfully", "deleted_count": deleted}
-
-
-class BulkRemoveRequest(BaseModel):
-    quiz_ids: List[str]
-
-
 @router.post("/{folder_id}/bulk_remove")
 async def bulk_remove_quizzes(folder_id: str, request: BulkRemoveRequest):
     await bulk_remove_quizzes_from_folder(folder_id, request.quiz_ids)
     return {"message": "Quizzes removed successfully"}
+
