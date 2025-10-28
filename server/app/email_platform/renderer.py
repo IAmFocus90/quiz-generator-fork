@@ -1,6 +1,6 @@
 from email.mime.text import MIMEText
 import os
-from server.app.share.share_email_utils import compose_quiz_email, sender_email
+from server.app.email_platform.platform_email_utils import compose_quiz_email, sender_email
 
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").rstrip("/")
 

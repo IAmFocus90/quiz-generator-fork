@@ -44,6 +44,12 @@ class UserBaseSchema(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
     password: str
+
+
+class UserBase(BaseModel):
+    username: str
+    email: EmailStr
+    full_name: Optional[str] = None
     
   
 
@@ -59,13 +65,15 @@ class NewUserSchema(BaseModel):
     updated_at: Optional[datetime]
 
 
-class UserSchema(UserBaseSchema):
+class UserSchema(UserBase):
     id: str
     quizzes: Optional[List[str]] = [] 
-    is_active: bool 
+    is_active: bool
+    is_verified: Optional[bool] = False
     role: str
     created_at: datetime
     updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
+    is_verified: Optional[bool] = None
 
 
 class UpdateUserSchema(BaseModel):
@@ -74,7 +82,7 @@ class UpdateUserSchema(BaseModel):
     full_name: Optional[str] = None
     quizzes: Optional[List[str]] = [] 
     password: Optional[str] = None 
-    is_active: Optional[bool] = None
+    is_active: Optional[bool] = True
     role:  Optional[str] = None 
     updated_at: Optional[datetime] = Field(default_factory=lambda: datetime.now(timezone.utc))
 

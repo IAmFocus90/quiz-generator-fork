@@ -2,7 +2,7 @@ import logging
 from fastapi import BackgroundTasks
 from ..models import EmailPayload, SendResult
 from ..renderer import render_email
-from server.app.share.share_email_utils import send_email
+from server.app.email_platform.platform_email_utils import send_email
 
 logger = logging.getLogger(__name__)
 

@@ -62,6 +62,7 @@ async def get_user_by_id(users_collection: AsyncIOMotorCollection, user_id: str)
                 full_name=user["full_name"],
                 quizzes=user["quizzes"],
                 is_active=user["is_active"],
+                is_verified=user.get("is_verified", False),
                 role=user["role"],
                 created_at=user["created_at"],
                 updated_at=user["updated_at"]
@@ -88,6 +89,7 @@ async def get_user_by_email(users_collection: AsyncIOMotorCollection, email: str
                 full_name=user["full_name"],
                 quizzes=user["quizzes"],
                 is_active=user["is_active"],
+                is_verified=user.get("is_verified", False),
                 role=user["role"],
                 created_at=user["created_at"],
                 updated_at=user["updated_at"]
@@ -172,6 +174,7 @@ async def list_users(users_collection: AsyncIOMotorCollection) -> List[UserSchem
         full_name=user["full_name"],
         quizzes=user["quizzes"],
         is_active=user["is_active"],
+        is_verified=user.get("is_verified", False),
         role=user["role"],
         created_at=user["created_at"],
         updated_at=user["updated_at"]
