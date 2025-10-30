@@ -29,6 +29,7 @@ from .app.db.routes.save_quiz_history import router as save_quiz_router
 from .app.db.routes.get_quiz_history import router as get_quiz_history_router
 from .app.db.routes.get_categories import router as get_categories_router
 from .app.db.core.connection import startUp
+from .app.db.routes import token_router
 from .app.quiz.routers.quiz import router as quiz_router
 from .app.share.routes.share_routes import router as share_router
 from .schemas.model import UserModel, LoginRequestModel, LoginResponseModel
@@ -85,7 +86,7 @@ app.include_router(quiz_router, prefix="/api", tags=["quiz"])
 app.include_router(share_router, prefix="/share", tags=["share"])
 app.include_router(healthcheck.router, prefix="/api", tags=["healthcheck"])
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
-
+app.include_router(token_router.router, prefix="/api", tags=["Token"])
 app.database = database
 
 

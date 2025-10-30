@@ -1,11 +1,14 @@
 import os
 import re
+import asyncio
+import functools
 from typing import Any, Dict, List, Optional
 from huggingface_hub import InferenceClient
 from dotenv import load_dotenv
+from ....app.db.crud.token_crud import get_user_token
 
 load_dotenv()
-client = InferenceClient(token=os.getenv("HUGGINGFACEHUB_API_TOKEN"))
+HF_FALLBACK_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # =====================================================
 # =============== PARSING FUNCTIONS ===================
@@ -161,63 +164,64 @@ Now generate the quiz:
 # ================= MAIN FUNCTION =====================
 # =====================================================
 
-def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def generate_quiz_with_huggingface(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Generates a quiz from the HuggingFace model based on user parameters.
+    Async wrapper for HuggingFace call.
     """
-    profession = payload.get("profession", "General Knowledge")
-    question_type = payload.get("question_type", "multichoice").lower()
-    difficulty_level = payload.get("difficulty_level", "medium")
-    num_questions = int(payload.get("num_questions", 5))
-    audience_type = payload.get("audience_type", "general")
-    custom_instruction = payload.get("custom_instruction")
+    loop = asyncio.get_event_loop()
 
-    # Build the prompt with all parameters
-    prompt = build_prompt(
-        profession,
-        question_type,
-        difficulty_level,
-        num_questions,
-        audience_type,
-        custom_instruction
-    )
+    # 1. Get token from DB (for dev, hardcode user_id)
+    user_id = "dev_user"  # TODO: replace with real auth later
+    user_token = await get_user_token(user_id)
 
-    # Call HuggingFace chat API
-    response = client.chat.completions.create(
-        model="deepseek-ai/DeepSeek-V3-0324",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=2048,
-        temperature=0.7
+    # 2. Use user’s token if exists, otherwise fallback
+    final_token = user_token if user_token else HF_FALLBACK_TOKEN
+
+    # 3. Build client with the chosen token
+    client = InferenceClient(token=final_token)
+
+    # 4. Run HuggingFace call
+    response = await loop.run_in_executor(
+        None,
+        functools.partial(
+            client.chat.completions.create,
+            model="deepseek-ai/DeepSeek-V3-0324",
+            messages=[{
+                "role": "user",
+                "content": build_prompt(
+                    payload.get("profession", "General Knowledge"),
+                    payload.get("question_type", "multichoice").lower(),
+                    payload.get("difficulty_level", "medium"),
+                    int(payload.get("num_questions", 5)),
+                    payload.get("audience_type", "general"),
+                    payload.get("custom_instruction"),
+                )
+            }],
+            max_tokens=2048,
+            temperature=0.7,
+        ),
     )
 
     response_text = response.choices[0].message.content
-
-    # Debugging log
     print("\n--- Raw Model Response ---\n", response_text, "\n--------------------------\n")
 
-    # Choose the correct parser
-    if question_type == "multichoice":
+    # 5. Parse response
+    qtype = payload.get("question_type", "multichoice").lower()
+    if qtype == "multichoice":
         questions = parse_multichoice(response_text)
-    elif question_type == "true-false":
+    elif qtype == "true-false":
         questions = parse_true_false(response_text)
-    elif question_type == "open-ended":
+    elif qtype == "open-ended":
         questions = parse_open_ended(response_text)
-    elif question_type == "short-answer":
+    elif qtype == "short-answer":
         questions = parse_short_answer(response_text)
     else:
-        return {
-            "error": f"Unsupported question type: {question_type}",
-            "raw": response_text
-        }
+        return {"error": f"Unsupported question type: {qtype}", "raw": response_text}
 
     return {
         "message": "Quiz generated successfully",
-        "profession": profession,
-        "num_questions": num_questions,
-        "question_type": question_type,
-        "difficulty_level": difficulty_level,
-        "audience_type": audience_type,
-        "custom_instruction": custom_instruction,
         "questions": questions,
-        "raw_response": response_text  # Keep raw response for debugging
+        "raw_response": response_text,
+        "source": "user_token" if user_token else "default_env",  # 👈 helpful metadata
+        **payload,
     }

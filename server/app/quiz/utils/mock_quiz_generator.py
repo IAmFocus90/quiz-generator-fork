@@ -30,9 +30,16 @@ def get_mock_questions_by_type(question_type: str, num_questions: int):
     normalized_key = normalized_map.get(question_type.strip().lower())
 
     if not normalized_key or normalized_key not in mock_dispatch:
-        raise HTTPException(status_code=400, detail=f"No mock data for question type: {question_type}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"No mock data for question type: {question_type}"
+        )
 
     questions = mock_dispatch[normalized_key]
+
+    # Ensure `questions` is a list
+    if callable(questions):
+        questions = questions()  # In case it's accidentally a function
 
     if num_questions > len(questions):
         raise HTTPException(
@@ -41,5 +48,3 @@ def get_mock_questions_by_type(question_type: str, num_questions: int):
         )
 
     return random.sample(questions, num_questions)
-
-

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import axios from "axios";
 import { useSearchParams } from "next/navigation";
+import toast from "react-hot-toast";
 import {
   CheckButton,
   NewQuizButton,
@@ -44,37 +45,30 @@ const QuizDisplayPage: React.FC = () => {
         // 🔹 Try AI source first
         const aiResponse = await axios.post(
           `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
-          {
-            ...basePayload,
-            source: "ai",
-          },
+          basePayload,
         );
 
-        const questions = aiResponse.data?.questions;
+        const data = aiResponse.data;
+
+        console.log("🔥 RAW RESPONSE FROM BACKEND:", data);
+
+        // ✅ Notify user if AI is down
+        if (data?.ai_down) {
+          toast.error(data.notification_message || "AI model unavailable.", {
+            duration: 4000,
+          });
+        }
+
+        const questions = data?.questions || [];
         if (!Array.isArray(questions) || questions.length === 0) {
-          throw new Error("AI returned invalid data");
+          throw new Error("No quiz questions returned.");
         }
 
         setQuizQuestions(questions);
         setUserAnswers(Array(questions.length).fill(""));
       } catch (error) {
-        console.warn("⚠️ AI failed, falling back to mock:", error);
-
-        try {
-          const mockResponse = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/get-questions`,
-            {
-              ...basePayload,
-              source: "mock",
-            },
-          );
-
-          const mockQuestions = mockResponse.data?.questions || [];
-          setQuizQuestions(mockQuestions);
-          setUserAnswers(Array(mockQuestions.length).fill(""));
-        } catch (mockErr) {
-          console.error("❌ Mock fallback also failed:", mockErr);
-        }
+        console.error("❌ Failed to fetch quiz questions:", error);
+        toast.error("Failed to fetch quiz questions. Please try again later.");
       }
     };
 
@@ -123,15 +117,12 @@ const QuizDisplayPage: React.FC = () => {
         };
       });
 
-      // Debugging: check what's being sent to backend
-      console.log("Payload being sent to backend:", payload);
-
       const { data: report } = await axios.post(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/grade-answers`,
         payload,
       );
 
-      // Convert back to "true"/"false" for display only
+      // Convert back to "true"/"false" for display
       const transformed = report.map((r: any) =>
         r.question_type === "true-false"
           ? {
@@ -149,6 +140,7 @@ const QuizDisplayPage: React.FC = () => {
       await saveQuizToHistory(userId, questionType, quizQuestions);
     } catch (err) {
       console.error("Error checking answers:", err);
+      toast.error("Failed to grade your quiz. Please try again.");
     }
   };
 

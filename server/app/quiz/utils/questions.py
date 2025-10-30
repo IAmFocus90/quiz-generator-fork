@@ -6,30 +6,64 @@ from typing import Dict
 from server.app.quiz.models.quiz_models import QuizRequest
 from server.app.quiz.utils.huggingface_utils import generate_quiz_with_huggingface
 from server.app.quiz.utils.mock_quiz_generator import get_mock_questions_by_type
-from server.api.v1.crud.update_quiz_history import update_quiz_history
+from server.app.db.crud.update_quiz_history import update_quiz_history
+from server.app.db.crud.ai_generated_quiz_crud import save_ai_generated_quiz
 
 
-def get_questions(request: QuizRequest, user_id: str = "defaultUserId") -> Dict:
+async def get_questions(request: QuizRequest, user_id: str = "defaultUserId") -> Dict:
+    """
+    Generate quiz questions using Hugging Face AI.
+    Falls back to mock data if AI generation fails.
+    Notifies frontend when AI is down via 'ai_down' flag and message.
+    Automatically saves AI-generated quizzes to the database.
+    """
+    ai_down = False
+    notification_message = None
+    ai_quiz_payload = None
+    final_questions = []
+
     try:
+        # === 1. Attempt Hugging Face AI generation ===
         ai_payload = request.dict()
-        response = generate_quiz_with_huggingface(ai_payload)
-        questions = response.get("questions")
 
-        if isinstance(questions, dict) and "error" in questions:
-            raise ValueError("Hugging Face returned an error")
+        # ✅ Await if this is an async function
+        response = await generate_quiz_with_huggingface(ai_payload)
+        
+        questions = response.get("questions") if response else None
 
-        if not questions or len(questions) < request.num_questions:
-            raise ValueError("Not enough questions from Hugging Face")
+        # Validate Hugging Face response
+        if not questions or isinstance(questions, dict) and "error" in questions:
+            raise ValueError("Invalid Hugging Face response")
+
+        if len(questions) < request.num_questions:
+            raise ValueError("Not enough questions returned by Hugging Face")
 
         final_questions = questions[:request.num_questions]
 
+        # Ensure question_type is added to each question
         for q in final_questions:
             q["question_type"] = request.question_type
 
         source = "huggingface"
 
+        # Prepare payload for saving to DB
+        ai_quiz_payload = {
+            "profession": request.profession,
+            "question_type": request.question_type,
+            "difficulty_level": request.difficulty_level,
+            "num_questions": request.num_questions,
+            "audience_type": request.audience_type,
+            "custom_instruction": request.custom_instruction,
+            "questions": final_questions
+        }
+
     except Exception as e:
+        # === 2. Notify UI that AI is down ===
+        ai_down = True
+        notification_message = "AI model is currently unavailable. Using mock questions instead."
         logging.warning(f"Hugging Face fallback triggered: {e}")
+
+        # === 3. Fallback to mock quiz generation ===
         question_type = request.question_type
         num_questions = request.num_questions
 
@@ -53,9 +87,23 @@ def get_questions(request: QuizRequest, user_id: str = "defaultUserId") -> Dict:
 
         source = "mock"
 
+    # === 4. Update quiz history ===
     update_quiz_history(user_id, final_questions)
 
-    return {
+    # === 5. Save AI-generated quiz if successful ===
+    if source == "huggingface" and ai_quiz_payload:
+        try:
+            await save_ai_generated_quiz(ai_quiz_payload)
+        except Exception as db_error:
+            logging.error(f"Failed to save AI-generated quiz to DB: {db_error}")
+
+    # === 6. Final response ===
+    result = {
         "source": source,
-        "questions": final_questions
+        "questions": final_questions,
+        "ai_down": ai_down,
+        "notification_message": notification_message
     }
+
+    logging.warning(f"Final API Response: {result}")  # ✅ Now this will actually log
+    return result
