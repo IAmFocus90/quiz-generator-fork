@@ -39,6 +39,15 @@ const QuizDisplayPage: React.FC = () => {
     hasFetchedRef.current = true;
 
     const fetchQuizQuestions = async () => {
+      const basePayload = {
+        question_type: questionType,
+        num_questions: numQuestions,
+        profession: profession,
+        difficulty_level: difficultyLevel,
+        audience_type: audienceType,
+        custom_instruction: customInstruction,
+      };
+
       try {
         setIsLoading(true);
         let questions: any[] = [];
