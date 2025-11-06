@@ -5,6 +5,7 @@ from .chain import ChainEmailSender
 from .adapters.celery_adapter import CeleryAdapter
 from .adapters.background_adapter import BackgroundAdapter
 from .adapters.direct_adapter import DirectAdapter
+from .adapters.mailgun_adapter import MailgunAdapter
 from server.celery_config import celery_app
 
 class EmailService:
@@ -17,10 +18,10 @@ class EmailService:
         return await self.chain.send(payload, route)
 
 def build_email_service(background: BackgroundTasks | None):
-    # Available adapters this request can use
     adapters = {
         "celery": CeleryAdapter(celery_app),
         "direct": DirectAdapter(),
+        "mailgun": MailgunAdapter(),
     }
     if background is not None:
         adapters["background"] = BackgroundAdapter(background)

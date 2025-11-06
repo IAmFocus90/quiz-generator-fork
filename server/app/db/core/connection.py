@@ -1,11 +1,11 @@
 from dotenv import load_dotenv
-load_dotenv()   
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from cryptography.fernet import Fernet
 import os
 from datetime import datetime
 
+load_dotenv()   
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 FERNET_KEY = os.getenv("FERNET_KEY")
@@ -21,6 +21,9 @@ database = client["quizApp_db"]
 quizzes_collection = database["quizzes"]
 users_collection = database["users"]
 quiz_history_collection = database["quiz_history"]
+ai_generated_quizzes_collection = database["ai_generated_quizzes"]
+
+
 quiz_categories_collection = database["quizzes_category"]
 blacklisted_tokens_collection = database["blacklisted_tokens"]
 ai_generated_quizzes_collection = database["ai_generated_quizzes"]
@@ -72,6 +75,8 @@ def get_quizzes_collection() -> AsyncIOMotorCollection:
         raise RuntimeError("[DB Error] quizzes_collection has not been initialized properly.")
     return quizzes_collection
 
+def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
+    return ai_generated_quizzes_collection
 def get_blacklisted_tokens_collection() -> AsyncIOMotorCollection:
     return blacklisted_tokens_collection
 def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
