@@ -1,11 +1,12 @@
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorCollection
-from .db.core.connection import quizzes_collection, users_collection
+from .db.core.connection import quizzes_collection, users_collection, quiz_categories_collection
 from .seed_data import seed_quizzes, seed_user_data
 from datetime import datetime, timezone
 from .db.utils import hash_password
 from .db.models.user_models import SeedUser
 from .db.models.quiz_models import SeedQuiz
+from .db.seed_data.seed_all_categories import seed_all
 from typing import List
 
 
@@ -47,9 +48,6 @@ async def seed_users_collection(collection: AsyncIOMotorCollection, seed_data: L
         print("Users collection already has data. Skipping seeding.")
 
 
-
-
-
 async def restoreSeed_quizzes_collection(collection: AsyncIOMotorCollection, seed_data: List[dict]):
     await collection.delete_many({})
     for data in seed_data:
@@ -79,14 +77,28 @@ async def restoreSeed_users_collection(collection: AsyncIOMotorCollection, seed_
             print(f"Error inserting user: {e}")
 
 
+async def restoreSeed_quiz_categories_collection(collection: AsyncIOMotorCollection):
+    try:
+        await collection.delete_many({})
+        await seed_all()
+        print("Quiz categories restored successfully.")
+    except Exception as e:
+        print(f"Error restoring quiz categories: {e}")
+
+
 async def seed_database():
-    await asyncio.gather(seed_quizzes_collection(quizzes_collection, seed_quizzes), seed_users_collection(users_collection, seed_user_data))
+    await asyncio.gather(
+        seed_quizzes_collection(quizzes_collection, seed_quizzes),
+        seed_users_collection(users_collection, seed_user_data),
+        seed_all()
+    )
     print("Database seeding process completed!")
 
 
-
-
 async def restoreSeed_database():
-    await asyncio.gather(restoreSeed_quizzes_collection(quizzes_collection, seed_quizzes), restoreSeed_users_collection(users_collection, seed_user_data))
-    print("Database seeding completed!")
-
+    await asyncio.gather(
+        restoreSeed_quizzes_collection(quizzes_collection, seed_quizzes),
+        restoreSeed_users_collection(users_collection, seed_user_data),
+        restoreSeed_quiz_categories_collection(quiz_categories_collection)
+    )
+    print("Database Restore and Seeding completed!")
