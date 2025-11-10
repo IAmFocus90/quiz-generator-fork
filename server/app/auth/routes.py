@@ -7,6 +7,9 @@ from server.schemas.model.password_reset_model import (
     RequestPasswordReset, 
     MessageResponse
 )
+from typing import Dict
+from server.app.db.core.connection import get_blacklisted_tokens_collection, get_users_collection
+from server.schemas.model.password_reset_model import PasswordResetRequest, PasswordResetResponse, RequestPasswordReset, MessageResponse
 from ..auth.services import (
     register_user_service,
     verify_otp_service,
@@ -16,8 +19,11 @@ from ..auth.services import (
     refresh_token_service,
     request_password_reset_service,
     reset_password_service,
-    logout_service
+    logout_service,
+    get_user_profile_service,
+    update_user_profile_service
 )
+
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from server.app.db.schemas.user_schemas import (
     UserRegisterSchema, 
@@ -25,6 +31,13 @@ from server.app.db.schemas.user_schemas import (
     ResendVerificationRequest
 )
 from server.app.db.models.user_models import UserDB
+from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, ResendVerificationRequest
+from server.app.db.models.user_models import (
+    UserDB,
+    UserOut,
+    UpdateProfileRequest,
+    UpdateProfileResponse
+    ) 
 from server.app.dependancies import get_current_user
 from server.app.auth.models import (
     LoginRequestModel, 
