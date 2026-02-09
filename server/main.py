@@ -28,6 +28,7 @@ from server.app.quiz.routers.quiz import router as quiz_router
 from .app.db.routes.save_quiz_history import router as save_quiz_router
 from .app.db.routes.get_quiz_history import router as get_quiz_history_router
 from .app.db.routes.get_categories import router as get_categories_router
+from .app.db.routes.folder_routes import router as folder_routes
 from .app.db.core.connection import startUp
 from .app.db.routes import token_router
 from .app.db.routes import saved_quizzes
@@ -89,6 +90,7 @@ app.include_router(healthcheck.router, prefix="/api", tags=["healthcheck"])
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(token_router.router, prefix="/api", tags=["Token"])
 app.include_router(saved_quizzes.router, prefix="/api", tags=["Saved Quizzes"])
+app.include_router(folder_routes, prefix="/api/folders", tags=["Folders"])
 app.database = database
 
 
