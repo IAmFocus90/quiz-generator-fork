@@ -27,6 +27,9 @@ from server.app.auth.routes import router as auth_router
 from server.app.db.routes.save_quiz_history import router as save_quiz_router
 from server.app.db.routes.get_quiz_history import router as get_quiz_history_router
 from .app.db.routes.get_categories import router as get_categories_router
+from .app.db.routes.folder_routes import router as folder_routes
+from .app.db.routes import saved_quizzes
+
 from .app.db.core.connection import startUp
 from .app.db.routes import token_router
 from .app.quiz.routers.quiz import router as quiz_router
@@ -91,6 +94,13 @@ app.include_router(share_router, prefix="/share", tags=["share"])
 app.include_router(healthcheck.router, prefix="/api", tags=["healthcheck"])
 app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(token_router.router, prefix="/api", tags=["Token"])
+app.include_router(saved_quizzes.router, prefix="/api", tags=["Saved Quizzes"])
+app.include_router(folder_routes, prefix="/api/folders", tags=["Folders"])
+
+app.include_router(save_quiz_router, prefix="/api")
+app.include_router(get_quiz_history_router, prefix="/api")
+app.include_router(get_categories_router, prefix="/api")
+
 app.database = database
 
 # Apply rate limits to main endpoints
