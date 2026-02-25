@@ -1,5 +1,5 @@
-import axios from "axios";
 import { TokenService } from "./tokenService";
+import { api } from "./auth";
 
 export async function saveQuizToHistory(
   meta: {
@@ -32,13 +32,9 @@ export async function saveQuizToHistory(
     questions: formattedQuestions,
   };
 
-  console.log("🔵 SAVE HISTORY PAYLOAD:", payload);
+  if (!token) {
+    throw new Error("No access token found");
+  }
 
-  return axios.post(
-    `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/save-quiz`,
-    payload,
-    {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    },
-  );
+  return api.post("/api/save-quiz", payload);
 }

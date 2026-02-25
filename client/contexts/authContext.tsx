@@ -9,7 +9,12 @@ import {
 import { useRouter } from "next/router";
 import { ROUTES } from "../constants/patterns/routes";
 import { User } from "../interfaces/models/User";
-import { getProfile, logoutUser, TokenService } from "../lib";
+import {
+  getProfile,
+  logoutUser,
+  refreshAccessToken,
+  TokenService,
+} from "../lib";
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -17,7 +22,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (
     accessToken: string,
-    refreshToken: string,
+    refreshToken?: string | null,
     tokenType?: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
@@ -35,12 +40,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const loadUserProfile = useCallback(async () => {
     try {
+      try {
+        const refreshed = await refreshAccessToken();
+        if (refreshed?.access_token) {
+          TokenService.setTokens(
+            refreshed.access_token,
+            null,
+            refreshed.token_type || "bearer",
+          );
+          const profile = await getProfile();
+          setUser(profile);
+          return;
+        }
+      } catch (error) {
+        // Ignore refresh failure; treat as unauthenticated.
+      }
       if (TokenService.hasTokens()) {
         const profile = await getProfile();
         setUser(profile);
-      } else {
-        setUser(null);
+        return;
       }
+      setUser(null);
     } catch (error) {
       console.error("Failed to load user profile:", error);
       TokenService.clearTokens();
@@ -50,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (
     accessToken: string,
-    refreshToken: string,
+    refreshToken: string | null = null,
     tokenType: string = "bearer",
   ) => {
     TokenService.setTokens(accessToken, refreshToken, tokenType);
@@ -96,9 +116,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initAuth = async () => {
       setIsLoading(true);
       try {
-        if (TokenService.hasTokens()) {
-          await loadUserProfile();
-        }
+        await loadUserProfile();
       } catch (error) {
         console.error("Auth initialization error:", error);
         TokenService.clearTokens();

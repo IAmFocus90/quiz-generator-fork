@@ -2,7 +2,6 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
 import {
   LoginResponse,
   LoginPayload,
-  RefreshTokenPayload,
   RefreshTokenResponse,
   UpdateProfilePayload,
   UpdateProfileResponse,
@@ -14,6 +13,7 @@ const BASE_URL =
 
 export const api = axios.create({
   baseURL: BASE_URL,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
@@ -43,7 +43,8 @@ api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = TokenService.getAccessToken();
     if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+      const tokenType = TokenService.getTokenType() || "Bearer";
+      config.headers.Authorization = `${tokenType} ${token}`;
     }
     return config;
   },
@@ -86,40 +87,28 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = TokenService.getRefreshToken();
-
-      if (!refreshToken) {
-        TokenService.clearTokens();
-        processQueue(error, null);
-        isRefreshing = false;
-        return Promise.reject(error);
-      }
-
       try {
         const response = await axios.post<RefreshTokenResponse>(
           `${BASE_URL}/auth/refresh`,
-          { refresh_token: refreshToken },
+          {},
           {
             headers: {
               "Content-Type": "application/json",
             },
+            withCredentials: true,
           },
         );
 
         const { access_token, token_type } = response.data;
 
         TokenService.updateAccessToken(access_token);
-
-        if (response.data.refresh_token) {
-          TokenService.setTokens(
-            access_token,
-            response.data.refresh_token,
-            token_type,
-          );
+        if (token_type) {
+          TokenService.setTokens(access_token, null, token_type);
         }
 
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          const headerTokenType = token_type || "Bearer";
+          originalRequest.headers.Authorization = `${headerTokenType} ${access_token}`;
         }
 
         processQueue(null, access_token);
@@ -181,17 +170,16 @@ export const login = async (payload: LoginPayload): Promise<LoginResponse> => {
   }
 };
 
-export const refreshAccessToken = async (
-  refreshToken: string,
-): Promise<RefreshTokenResponse> => {
+export const refreshAccessToken = async (): Promise<RefreshTokenResponse> => {
   try {
     const response = await axios.post<RefreshTokenResponse>(
       `${BASE_URL}/auth/refresh`,
-      { refresh_token: refreshToken },
+      {},
       {
         headers: {
           "Content-Type": "application/json",
         },
+        withCredentials: true,
       },
     );
     return response.data;

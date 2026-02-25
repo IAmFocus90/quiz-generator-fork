@@ -46,8 +46,9 @@ async def get_current_user(
 
         user_id: str = payload.get("sub")
         jti: str = payload.get("jti")
+        token_type: str = payload.get("type")
 
-        if not user_id or not jti:
+        if not user_id or not jti or token_type != "access":
             raise credentials_exception
 
     except ExpiredSignatureError:
@@ -117,8 +118,9 @@ async def get_current_user_optional(
 
         user_id: str = payload.get("sub")
         jti: str = payload.get("jti")
+        token_type: str = payload.get("type")
 
-        if not user_id or not jti:
+        if not user_id or not jti or token_type != "access":
             return None
 
     except (ExpiredSignatureError, InvalidTokenError, DecodeError):

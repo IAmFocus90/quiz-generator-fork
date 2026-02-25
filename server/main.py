@@ -59,7 +59,8 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 load_dotenv()
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+raw_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+origins = [origin.strip() for origin in raw_origins if origin.strip() and origin.strip() != "*"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

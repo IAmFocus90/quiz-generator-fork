@@ -7,7 +7,8 @@ const authHeaders = () => {
   if (!token) {
     throw new Error("Authentication token missing");
   }
-  return { Authorization: `Bearer ${token}` };
+  const tokenType = TokenService.getTokenType() || "Bearer";
+  return { Authorization: `${tokenType} ${token}` };
 };
 
 export async function saveUserToken(token: string) {

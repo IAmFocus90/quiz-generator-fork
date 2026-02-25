@@ -1,6 +1,5 @@
 export const TokenService = {
   accessTokenMemory: null as string | null,
-  refreshTokenMemory: null as string | null,
   tokenTypeMemory: null as string | null,
 
   getAccessToken(): string | null {
@@ -16,21 +15,6 @@ export const TokenService = {
       }
     }
     this.accessTokenMemory = token;
-    return token;
-  },
-
-  getRefreshToken(): string | null {
-    if (this.refreshTokenMemory) return this.refreshTokenMemory;
-    if (typeof window === "undefined") return null;
-    let token = sessionStorage.getItem("refresh_token");
-    if (!token) {
-      token = localStorage.getItem("refresh_token");
-      if (token) {
-        sessionStorage.setItem("refresh_token", token);
-        localStorage.removeItem("refresh_token");
-      }
-    }
-    this.refreshTokenMemory = token;
     return token;
   },
 
@@ -51,16 +35,20 @@ export const TokenService = {
 
   setTokens(
     accessToken: string,
-    refreshToken: string,
+    refreshToken: string | null = null,
     tokenType: string = "bearer",
   ): void {
     if (typeof window === "undefined") return;
     this.accessTokenMemory = accessToken;
-    this.refreshTokenMemory = refreshToken;
     this.tokenTypeMemory = tokenType;
     sessionStorage.setItem("access_token", accessToken);
-    sessionStorage.setItem("refresh_token", refreshToken);
     sessionStorage.setItem("token_type", tokenType);
+    if (refreshToken) {
+      sessionStorage.setItem("refresh_token", refreshToken);
+    } else {
+      sessionStorage.removeItem("refresh_token");
+      localStorage.removeItem("refresh_token");
+    }
   },
 
   updateAccessToken(accessToken: string): void {
@@ -72,7 +60,6 @@ export const TokenService = {
   clearTokens(): void {
     if (typeof window === "undefined") return;
     this.accessTokenMemory = null;
-    this.refreshTokenMemory = null;
     this.tokenTypeMemory = null;
     sessionStorage.removeItem("access_token");
     sessionStorage.removeItem("refresh_token");
@@ -80,6 +67,6 @@ export const TokenService = {
   },
 
   hasTokens(): boolean {
-    return !!(this.getAccessToken() && this.getRefreshToken());
+    return !!this.getAccessToken();
   },
 };

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from pydantic import BaseModel
 
@@ -29,10 +29,4 @@ async def add_token(token_in: TokenIn, user=Depends(get_current_user)):
 async def fetch_token(user=Depends(get_current_user)):
 
     token = await get_user_token(user.id)
-
-    if not token:
-
-        raise HTTPException(status_code=404, detail="No stored token for user")
-
-    return {"token": token}
-
+    return {"token": token or None}

@@ -16,11 +16,10 @@ async def save_quiz(quiz: QuizHistoryModel, current_user=Depends(get_current_use
 
     quiz.user_id = current_user.id
 
-    quiz_dict = quiz.model_dump(by_alias=True)
+    quiz_dict = quiz.model_dump(by_alias=True, exclude_none=True)
 
     inserted_id = await update_quiz_history(quiz_dict)
 
     return {"message": "Quiz saved", "quiz_id": inserted_id}
-
 
 

@@ -68,6 +68,7 @@ const QuizDisplayPage: React.FC = () => {
             const normalizedQuestions = storedQuestions.map((q: any) => ({
               ...q,
               answer: q.answer || q.correct_answer,
+              question_type: q.question_type || questionType,
             }));
             setQuizQuestions(normalizedQuestions);
             setUserAnswers(Array(normalizedQuestions.length).fill(""));
@@ -89,6 +90,7 @@ const QuizDisplayPage: React.FC = () => {
           questions = data.questions.map((q: any) => ({
             ...q,
             answer: q.answer || q.correct_answer,
+            question_type: q.question_type || questionType,
           }));
 
           toast.success("Loaded saved quiz successfully!");
@@ -114,7 +116,11 @@ const QuizDisplayPage: React.FC = () => {
             });
           }
 
-          questions = data?.questions || [];
+          questions =
+            data?.questions?.map((q: any) => ({
+              ...q,
+              question_type: q.question_type || questionType,
+            })) || [];
           if (!Array.isArray(questions) || questions.length === 0) {
             throw new Error("No quiz questions returned.");
           }
@@ -174,7 +180,7 @@ const QuizDisplayPage: React.FC = () => {
           question: q.question,
           user_answer: userAnswer,
           correct_answer: correctAnswer,
-          question_type: q.question_type,
+          question_type: q.question_type || questionType,
           source: q.source || "unknown",
         };
       });
@@ -197,7 +203,17 @@ const QuizDisplayPage: React.FC = () => {
       setQuizReport(transformed);
       setIsQuizChecked(true);
 
-      await saveQuizToHistory(userId, questionType, quizQuestions);
+      await saveQuizToHistory(
+        {
+          question_type: questionType,
+          num_questions: numQuestions,
+          difficulty_level: difficultyLevel,
+          profession: profession,
+          audience_type: audienceType,
+          custom_instruction: customInstruction,
+        },
+        quizQuestions,
+      );
     } catch (err) {
       console.error("Error checking answers:", err);
       toast.error("Failed to grade your quiz. Please try again.");

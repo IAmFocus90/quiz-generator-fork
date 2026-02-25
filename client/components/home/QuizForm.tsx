@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/authContext";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { TokenService } from "../../lib/functions/tokenService";
+import { api } from "../../lib/functions/auth";
 
 export default function QuizForm() {
   const [profession, setProfession] = useState("");
@@ -21,12 +22,12 @@ export default function QuizForm() {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   useEffect(() => {
     if (user === undefined) return;
 
-    if (!user) {
+    if (!user || !isAuthenticated) {
       setPreviousToken("");
       return;
     }
@@ -35,33 +36,29 @@ export default function QuizForm() {
     if (savedLocal) setPreviousToken(savedLocal);
 
     const loadFromBackend = async () => {
-      const accessToken = TokenService.getAccessToken();
-      if (!accessToken) return;
-
       try {
-        const res = await axios.get(
-          `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/user/token`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-            withCredentials: true,
-          },
-        );
+        const res = await api.get("/api/user/token", {
+          validateStatus: (status) => status === 200 || status === 404,
+        });
+
+        if (res.status === 404) {
+          return;
+        }
 
         if (res.data?.token) {
           setPreviousToken(res.data.token);
           sessionStorage.setItem("user_api_token", res.data.token);
         }
       } catch (e: any) {
-        if (e.response?.status !== 404) {
-          console.warn("Error fetching user token:", e);
+        if (e?.response?.status === 404) {
+          return;
         }
+        console.warn("Error fetching user token:", e);
       }
     };
 
     loadFromBackend();
-  }, [user]);
+  }, [user, isAuthenticated]);
 
   const handleGenerateQuiz = async () => {
     if (!profession) {

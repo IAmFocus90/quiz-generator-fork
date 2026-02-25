@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status, HTTPException
 from redis.asyncio import Redis
 from server.app.db.core.connection import get_blacklisted_tokens_collection
 from server.schemas.model.password_reset_model import (
@@ -52,6 +52,7 @@ from server.app.auth.models import (
 )
 from server.app.email_platform.deps import get_email_service
 from server.app.email_platform.service import EmailService
+from server.app.db.core.config import settings
 
 # Import rate limiter
 from server.app.db.core.rate_limiter import limiter, RateLimits
@@ -107,11 +108,27 @@ async def login(
     request_data: LoginRequestModel, 
 ):
     users_collection = request.app.state.users_collection
-    return await login_service(
+    result = await login_service(
         identifier=request_data.identifier,
         password=request_data.password,
         users_collection=users_collection
     )
+    refresh_token = result.get("refresh_token")
+    if refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="lax",
+            max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+            path="/",
+        )
+    return {
+        "message": result.get("message", "Login successful"),
+        "access_token": result["access_token"],
+        "token_type": result.get("token_type", "bearer"),
+    }
 
 @router.post("/refresh", response_model=RefreshTokenResponse)
 @limiter.limit(RateLimits.AUTH_REFRESH)  
@@ -122,10 +139,29 @@ async def refresh_token(
 ):
     """Refresh access token using refresh token"""
     users_collection = request.app.state.users_collection
-    return await refresh_token_service(
-        refresh_token=request_data.refresh_token,
+    cookie_refresh_token = request.cookies.get("refresh_token")
+    token = request_data.refresh_token or cookie_refresh_token
+    if not token:
+        raise HTTPException(status_code=401, detail="Refresh token missing")
+    result = await refresh_token_service(
+        refresh_token=token,
         users_collection=users_collection
     )
+    new_refresh_token = result.get("refresh_token")
+    if new_refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="lax",
+            max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+            path="/",
+        )
+    return {
+        "access_token": result["access_token"],
+        "token_type": result.get("token_type", "bearer"),
+    }
 
 @router.get("/profile")
 @limiter.limit(RateLimits.API_READ)  
@@ -217,4 +253,5 @@ async def logout(
 ):
     token = credentials.credentials
     users_collection = request.app.state.users_collection
+    response.delete_cookie("refresh_token", path="/")
     return await logout_service(token, users_collection, blacklist_collection)

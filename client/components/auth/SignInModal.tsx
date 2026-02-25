@@ -50,10 +50,10 @@ const SignInModal: React.FC<SignInModalProps> = ({
 
       const response: LoginResponse = await login(payload);
 
-      if (response.access_token && response.refresh_token) {
+      if (response.access_token) {
         await authLogin(
           response.access_token,
-          response.refresh_token,
+          response.refresh_token || null,
           response.token_type,
         );
 

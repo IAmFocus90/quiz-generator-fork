@@ -1,6 +1,6 @@
-import axios from "axios";
 import { GeneratedQuizModel } from "../../interfaces/models";
 import { TokenService } from "./tokenService";
+import { api } from "./auth";
 
 export const getUserQuizHistory = async (): Promise<
   GeneratedQuizModel[] | undefined
@@ -9,10 +9,7 @@ export const getUserQuizHistory = async (): Promise<
     const token = TokenService.getAccessToken();
     if (!token) throw new Error("No access token found");
 
-    const response = await axios.get(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/quiz-history`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const response = await api.get("/api/quiz-history");
 
     return response.data;
   } catch (error) {

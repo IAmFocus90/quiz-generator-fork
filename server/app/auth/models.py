@@ -22,14 +22,14 @@ class LoginResponse(BaseModel):
 
     access_token: str
 
-    refresh_token: str
+    refresh_token: Optional[str] = None
 
     token_type: str = "bearer"
 
 
 class RefreshTokenRequest(BaseModel):
 
-    refresh_token: str
+    refresh_token: Optional[str] = None
 
 
 class RefreshTokenResponse(BaseModel):
@@ -38,4 +38,4 @@ class RefreshTokenResponse(BaseModel):
 
     token_type: str
 
-    refresh_token: str
+    refresh_token: Optional[str] = None

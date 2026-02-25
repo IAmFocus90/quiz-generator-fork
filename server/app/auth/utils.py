@@ -82,7 +82,9 @@ def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes
 
         "exp": expire,
 
-        "jti": str(uuid.uuid4())
+        "jti": str(uuid.uuid4()),
+
+        "type": "access",
 
     })
 

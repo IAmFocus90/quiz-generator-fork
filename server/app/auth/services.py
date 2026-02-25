@@ -260,9 +260,25 @@ async def refresh_token_service(refresh_token: str, users_collection: AsyncIOMot
         raise HTTPException(status_code=401, detail="No refresh token found")
     
     if not verify_token_hash(refresh_token, stored_token_hash):
+        await users_collection.update_one(
+            {"_id": user["_id"]},
+            {"$unset": {
+                "refresh_token": "",
+                "refresh_token_jti": "",
+                "refresh_token_expires_at": "",
+            }},
+        )
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     
     if token_jti != stored_jti:
+        await users_collection.update_one(
+            {"_id": user["_id"]},
+            {"$unset": {
+                "refresh_token": "",
+                "refresh_token_jti": "",
+                "refresh_token_expires_at": "",
+            }},
+        )
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     
     if token_expires_at:
@@ -355,6 +371,15 @@ async def reset_password_service(request: PasswordResetRequest):
 
     if result.modified_count == 0:
         raise HTTPException(status_code=500, detail="Password reset failed")
+
+    await users_collection.update_one(
+        {"email": request.email},
+        {"$unset": {
+            "refresh_token": "",
+            "refresh_token_jti": "",
+            "refresh_token_expires_at": "",
+        }},
+    )
 
    
     await redis_client.delete(f"otp:{request.email}")
