@@ -11,7 +11,7 @@ const QuizHistoryButton: React.FC = () => {
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
-  const isActive = pathname.startsWith("/quiz_history");
+  const isActive = pathname?.startsWith("/quiz_history") ?? false;
 
   const handleClick = () => {
     if (isLoading) return;

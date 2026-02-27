@@ -48,7 +48,7 @@ const FoldersPage = () => {
     };
 
     fetchFolders();
-  }, [user]);
+  }, [isAuthenticated, user]);
 
   const handleDeleteFolder = async (folderId: string) => {
     try {

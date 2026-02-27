@@ -54,7 +54,7 @@ const FolderView = () => {
       }
     };
     fetchFolder();
-  }, [folderId, user]);
+  }, [folderId, isAuthenticated, user]);
 
   const handleDeleteQuizConfirmed = async (quizId: string) => {
     try {

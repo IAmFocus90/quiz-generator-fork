@@ -273,7 +273,6 @@ const QuizDisplayPage: React.FC = () => {
               <CheckButton onClick={checkAnswers} />
               <SaveQuizButton quizData={quizQuestions} />
               <DownloadQuizButton
-                userId={userId}
                 question_type={questionType}
                 numQuestion={numQuestions}
               />
