@@ -20,17 +20,18 @@ from .share_schemas import (
     ShareEmailResponse,
     SharedQuizDataResponse,
 )
-
 from server.app.email_platform.service import EmailService
 from server.app.email_platform.deps import get_email_service
 
-
 logger = logging.getLogger(__name__)
-load_dotenv()  
+
+load_dotenv()
 
 share_url = os.getenv("SHARE_URL")
+
 if not share_url:
     raise EnvironmentError("[Config Error] 'SHARE_URL' is not defined in environment")
+
 
 router = APIRouter()
 
@@ -90,7 +91,6 @@ async def resolve_shared_quiz(quiz_id: str) -> Optional[Dict[str, Any]]:
     saved_quiz = await saved_collection.find_one({"_id": object_id}, projection={"_id": 0})
     if saved_quiz:
         return normalize_shared_quiz(saved_quiz, quiz_id, "saved_quizzes")
-
     return None
 
 
@@ -100,6 +100,7 @@ async def get_random_quiz_id(quizzes_collection: AsyncIOMotorCollection = Depend
         quiz_List = await list_quizzes(quizzes_collection)
         selected_quiz = random.choice(quiz_List)
         return selected_quiz
+
     except Exception as e:
         logger.info(f"Error occured while fetching quiz from database: {e}")
         raise HTTPException(detail=f"Unable to fetch from database!", status_code=404)
@@ -111,6 +112,7 @@ async def get_share_link(quiz_id: str):
         shareable_link = f"{share_url}/share/{quiz_id}"
         logger.info(f"shareable link generated successfully")
         return {"link": shareable_link}
+
     except Exception as e:
         logger.info(f"Unable to generate shareable link: {e}")
         raise HTTPException(detail="Failed to generate shareable link", status_code=500)
@@ -142,7 +144,6 @@ async def share_quiz_via_email(
         shared_quiz = await resolve_shared_quiz(query.quiz_id)
         if not shared_quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
-
         
         await email_svc.send_email(
             to=query.recipient_email,
@@ -157,6 +158,7 @@ async def share_quiz_via_email(
         )
         logger.info(f"[API] Share email pipeline triggered for {query.recipient_email} and quiz ID {query.quiz_id}")
         return {"message": "Email sent successfully!"}
+    
     except HTTPException:
         raise
     except Exception as e:
@@ -165,3 +167,4 @@ async def share_quiz_via_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send email. Please try again later."
         )
+

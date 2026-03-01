@@ -4,7 +4,9 @@ from typing import Any, Dict, List
 
 
 
+
 class ShareQuizResponse(BaseModel):
+
     link: str
 
 
@@ -17,9 +19,13 @@ class SharedQuizDataResponse(BaseModel):
 
 
 class ShareEmailRequest(BaseModel):
+
     quiz_id: str
+
     recipient_email: EmailStr
+
     shareableLink: str
+
 
 
 class ShareEmailResponse(BaseModel):
