@@ -128,6 +128,7 @@ def get_user_quiz_history_handler(query: GetUserQuizHistoryQuery = Body(...)) ->
 
 
 @app.get("/download-quiz")
+@limiter.limit("20/minute")
 async def download_quiz_handler(query: DownloadQuizQuery = Depends()) -> StreamingResponse:
     logger.info("Received query: %s", query)
 
@@ -198,16 +199,6 @@ async def get_user_quiz_history_handler(
 ) -> List[Any]:
     logger.info("Received query: %s", query)
     return get_user_quiz_history(query.user_id)
-
-@app.get("/download-quiz")
-@limiter.limit("20/minute")
-async def download_quiz_handler(
-    request: Request,
-    response: Response,
-    query: DownloadQuizQuery = Depends()
-) -> StreamingResponse:
-    logger.info("Received query: %s", query)
-    return download_quiz(query.format, query.question_type, query.num_question)
 
 @app.get("/ping-redis")
 @limiter.limit("10/minute")
