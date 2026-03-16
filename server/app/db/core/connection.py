@@ -4,7 +4,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 from cryptography.fernet import Fernet
 import os
 from datetime import datetime
-from server.app.db.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
+from ...db.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
 
 load_dotenv()   
 
