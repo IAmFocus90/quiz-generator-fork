@@ -7,6 +7,7 @@ export const saveQuiz = async (
   questionType: string,
   questions: any[],
   token: string,
+  quizId?: string,
 ) => {
   if (!Array.isArray(questions) || questions.length === 0) {
     throw new Error("No questions provided for saving.");
@@ -20,6 +21,7 @@ export const saveQuiz = async (
 
   const payload = {
     title,
+    quiz_id: quizId,
     question_type: questionType,
     questions: formattedQuestions,
   };

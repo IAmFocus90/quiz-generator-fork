@@ -32,6 +32,10 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "status": {"enum": ["active", "archived", "deleted"]},
                     "source": {"enum": ["ai", "manual", "seed", "legacy"]},
                     "tags": {"bsonType": "array"},
+                    "legacy_source_collection": {"bsonType": ["string", "null"]},
+                    "legacy_quiz_id": {"bsonType": ["string", "null"]},
+                    "content_fingerprint": {"bsonType": ["string", "null"]},
+                    "structure_fingerprint": {"bsonType": ["string", "null"]},
                     "schema_version": {"bsonType": "int"},
                     "created_at": {"bsonType": "date"},
                     "updated_at": {"bsonType": "date"},
@@ -63,6 +67,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "user_id": {"bsonType": "string", "minLength": 1},
                     "name": {"bsonType": "string", "minLength": 1},
                     "description": {"bsonType": ["string", "null"]},
+                    "legacy_folder_id": {"bsonType": ["string", "null"]},
                     "created_at": {"bsonType": "date"},
                     "updated_at": {"bsonType": "date"},
                 },
@@ -77,6 +82,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "quiz_id": {"bsonType": "string", "minLength": 1},
                     "added_by": {"bsonType": ["string", "null"]},
                     "position": {"bsonType": ["int", "null"]},
+                    "legacy_folder_item_id": {"bsonType": ["string", "null"]},
                     "created_at": {"bsonType": "date"},
                 },
             }
@@ -88,6 +94,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                 "properties": {
                     "user_id": {"bsonType": "string", "minLength": 1},
                     "quiz_id": {"bsonType": "string", "minLength": 1},
+                    "legacy_saved_quiz_id": {"bsonType": ["string", "null"]},
                     "saved_at": {"bsonType": "date"},
                 },
             }
@@ -101,6 +108,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "quiz_id": {"bsonType": "string", "minLength": 1},
                     "action": {"bsonType": "string", "minLength": 1},
                     "metadata": {"bsonType": ["object", "null"]},
+                    "legacy_history_id": {"bsonType": ["string", "null"]},
                     "created_at": {"bsonType": "date"},
                 },
             }
