@@ -91,6 +91,10 @@ class QuizDocumentV2(BaseModel):
     status: QuizStatusV2 = QuizStatusV2.ACTIVE
     source: QuizSourceV2 = QuizSourceV2.MANUAL
     tags: List[str] = Field(default_factory=list)
+    legacy_source_collection: Optional[str] = None
+    legacy_quiz_id: Optional[str] = None
+    content_fingerprint: Optional[str] = None
+    structure_fingerprint: Optional[str] = None
     schema_version: int = QUIZ_SCHEMA_VERSION
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
