@@ -1,67 +1,43 @@
 "use client";
 
 import React, { Suspense, useEffect, useState } from "react";
-import { getUserQuizHistory } from "../../lib/functions/getUserQuizHistory";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import {
+  deleteQuizHistoryItem,
+  getUserQuizHistory,
+} from "../../lib/functions/getUserQuizHistory";
 import { useAuth } from "../../contexts/authContext";
 import NavBar from "../../components/home/NavBar";
 import Footer from "../../components/home/Footer";
 import RequireAuth from "../../components/auth/RequireAuth";
 
-const transformQuizHistory = (quizHistory: any[]) => {
-  if (!quizHistory || quizHistory.length === 0) return [];
+interface QuizHistoryQuestion {
+  question: string;
+  options?: string[];
+  answer: string;
+}
 
-  return quizHistory.map((quizItem: any, quizIndex: number) => {
-    const createdAt = quizItem.created_at
-      ? new Date(quizItem.created_at).toLocaleString()
-      : "Unknown date";
-
-    const listedQuizQuestions = quizItem.questions.map(
-      (quizQuestion: any, qIndex: number) => {
-        let optionsList: JSX.Element | null = null;
-
-        if (quizQuestion.options) {
-          optionsList = (
-            <ul className="ml-4 list-disc list-inside text-sm text-gray-700">
-              {quizQuestion.options.map((option: string, optIdx: number) => (
-                <li key={optIdx} className="py-0.5">
-                  {option}
-                </li>
-              ))}
-            </ul>
-          );
-        }
-
-        return (
-          <div key={qIndex} className="mb-4">
-            <h3 className="font-semibold text-gray-800 text-base sm:text-lg mb-1">
-              {qIndex + 1}. {quizQuestion.question}
-            </h3>
-
-            {optionsList}
-
-            <p className="mt-1 text-sm text-[#0F2654]">
-              <strong>Answer:</strong> {quizQuestion.answer}
-            </p>
-          </div>
-        );
-      },
-    );
-
-    return (
-      <div key={quizIndex}>
-        <hr className="border-gray-300 my-4" />
-        <p className="text-sm text-gray-500 mb-3">Generated on: {createdAt}</p>
-        <div>{listedQuizQuestions}</div>
-      </div>
-    );
-  });
-};
+interface QuizHistoryItem {
+  _id: string;
+  created_at?: string;
+  question_type: string;
+  difficulty_level?: string;
+  profession?: string;
+  audience_type?: string;
+  questions: QuizHistoryQuestion[];
+}
 
 const DisplayQuizHistoryPage = ({
   quizHistory,
+  onDelete,
 }: {
-  quizHistory: JSX.Element[];
+  quizHistory: QuizHistoryItem[];
+  onDelete: (historyId: string) => Promise<void>;
 }) => {
+  const router = useRouter();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
       <NavBar />
@@ -77,12 +53,75 @@ const DisplayQuizHistoryPage = ({
               No quiz history available.
             </p>
           ) : (
-            quizHistory.map((quizElement, idx) => (
+            quizHistory.map((quizItem, idx) => (
               <div
-                key={idx}
+                key={quizItem._id}
                 className="bg-white p-6 rounded-xl shadow-md border border-gray-200"
               >
-                {quizElement}
+                {idx > 0 && <hr className="border-gray-300 my-4" />}
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">
+                      Generated on:{" "}
+                      {quizItem.created_at
+                        ? new Date(quizItem.created_at).toLocaleString()
+                        : "Unknown date"}
+                    </p>
+                    <h2 className="text-lg font-semibold text-[#0F2654]">
+                      {quizItem.profession || "Quiz History Item"}
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      {quizItem.question_type} ·{" "}
+                      {quizItem.difficulty_level || "N/A"}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        router.push(`/quiz_history/${quizItem._id}`)
+                      }
+                      className="px-3 py-1 rounded-lg bg-[#0a3264] text-white text-sm hover:bg-[#082952]"
+                    >
+                      View Details
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setDeletingId(quizItem._id);
+                        await onDelete(quizItem._id);
+                        setDeletingId(null);
+                      }}
+                      disabled={deletingId === quizItem._id}
+                      className="px-3 py-1 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {deletingId === quizItem._id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {quizItem.questions.map((quizQuestion, qIndex) => (
+                    <div key={qIndex} className="mb-4">
+                      <h3 className="font-semibold text-gray-800 text-base sm:text-lg mb-1">
+                        {qIndex + 1}. {quizQuestion.question}
+                      </h3>
+
+                      {quizQuestion.options && (
+                        <ul className="ml-4 list-disc list-inside text-sm text-gray-700">
+                          {quizQuestion.options.map((option, optIdx) => (
+                            <li key={optIdx} className="py-0.5">
+                              {option}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      <p className="mt-1 text-sm text-[#0F2654]">
+                        <strong>Answer:</strong> {quizQuestion.answer}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))
           )}
@@ -100,7 +139,7 @@ export default function DisplayQuizHistory({
   openLoginModal: () => void;
 }) {
   const { isAuthenticated, isLoading } = useAuth();
-  const [quizHistory, setQuizHistory] = useState<JSX.Element[]>([]);
+  const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -113,9 +152,9 @@ export default function DisplayQuizHistory({
 
     const fetchQuizHistory = async () => {
       try {
-        const rawHistory: any[] = (await getUserQuizHistory()) ?? [];
-        const transformed = transformQuizHistory(rawHistory);
-        setQuizHistory(transformed);
+        const rawHistory: QuizHistoryItem[] =
+          (await getUserQuizHistory()) ?? [];
+        setQuizHistory(rawHistory);
       } catch (error) {
         console.error("Failed to fetch quiz history:", error);
         setQuizHistory([]);
@@ -145,7 +184,21 @@ export default function DisplayQuizHistory({
           <div className="p-8 text-center">Loading quiz history...</div>
         }
       >
-        <DisplayQuizHistoryPage quizHistory={quizHistory} />
+        <DisplayQuizHistoryPage
+          quizHistory={quizHistory}
+          onDelete={async (historyId) => {
+            try {
+              await deleteQuizHistoryItem(historyId);
+              setQuizHistory((prev) =>
+                prev.filter((item) => item._id !== historyId),
+              );
+              toast.success("Quiz history item deleted.");
+            } catch (error) {
+              console.error("Failed to delete quiz history item:", error);
+              toast.error("Failed to delete quiz history item.");
+            }
+          }}
+        />
       </Suspense>
     </RequireAuth>
   );

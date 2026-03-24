@@ -87,9 +87,8 @@ async def delete_saved_quiz(quiz_id: str, user_id: str):
     legacy_quiz = await collection.find_one({"_id": ObjectId(quiz_id), "user_id": user_id})
     result = await collection.delete_one({"_id": ObjectId(quiz_id), "user_id": user_id})
     if result.deleted_count and legacy_quiz and legacy_quiz.get("canonical_quiz_id"):
-        await dual_write_service.reference_repository.delete_saved_quiz(
-            user_id,
-            legacy_quiz["canonical_quiz_id"],
+        await dual_write_service.reference_repository.delete_saved_quiz_by_legacy_id(
+            str(legacy_quiz["_id"])
         )
     return result.deleted_count > 0
 

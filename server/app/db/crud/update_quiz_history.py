@@ -2,6 +2,9 @@ import logging
 from datetime import datetime
 from typing import Any, Dict
 
+from bson import ObjectId
+from bson.errors import InvalidId
+
 from ....app.db.core.connection import quiz_history_collection
 from ....app.db.services.quiz_dual_write_service import QuizDualWriteService
 
@@ -42,3 +45,39 @@ async def get_quiz_history(user_id: str, limit: int = 100):
         if isinstance(quiz.get("created_at"), datetime):
             quiz["created_at"] = quiz["created_at"].isoformat()
     return quizzes
+
+
+async def get_quiz_history_item(user_id: str, history_id: str):
+    try:
+        object_id = ObjectId(history_id)
+    except InvalidId:
+        return None
+
+    quiz = await quiz_history_collection.find_one({"_id": object_id, "user_id": user_id})
+    if not quiz:
+        return None
+
+    quiz["_id"] = str(quiz["_id"])
+    if isinstance(quiz.get("created_at"), datetime):
+        quiz["created_at"] = quiz["created_at"].isoformat()
+    return quiz
+
+
+async def delete_quiz_history_item(user_id: str, history_id: str):
+    try:
+        object_id = ObjectId(history_id)
+    except InvalidId:
+        return False
+
+    legacy_history = await quiz_history_collection.find_one(
+        {"_id": object_id, "user_id": user_id}
+    )
+    if not legacy_history:
+        return False
+
+    result = await quiz_history_collection.delete_one({"_id": object_id, "user_id": user_id})
+    if result.deleted_count and legacy_history.get("canonical_quiz_id"):
+        await dual_write_service.reference_repository.delete_quiz_history_by_legacy_id(
+            str(legacy_history["_id"])
+        )
+    return result.deleted_count > 0

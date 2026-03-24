@@ -242,6 +242,7 @@ class QuizDualWriteService:
                 SavedQuizDocumentV2(
                     user_id=legacy_saved_doc["user_id"],
                     quiz_id=str(canonical_quiz.id),
+                    display_title=legacy_saved_doc.get("title"),
                     legacy_saved_quiz_id=str(legacy_saved_doc["_id"]),
                     saved_at=legacy_saved_doc.get("created_at", datetime.utcnow()),
                 )
@@ -288,9 +289,11 @@ class QuizDualWriteService:
                     action="generated",
                     metadata={
                         "source": canonical_quiz.source,
+                        "quiz_name": legacy_history_doc.get("quiz_name"),
                         "topic": legacy_history_doc.get("profession") or canonical_quiz.title,
                         "difficulty_level": legacy_history_doc.get("difficulty_level"),
                         "audience_type": legacy_history_doc.get("audience_type"),
+                        "custom_instruction": legacy_history_doc.get("custom_instruction"),
                     },
                     legacy_history_id=str(legacy_history_doc["_id"]),
                     created_at=legacy_history_doc.get("created_at", datetime.utcnow()),

@@ -1,4 +1,6 @@
 from motor.motor_asyncio import AsyncIOMotorCollection
+from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo import ReturnDocument
 
 from ..models.reference_models import (
@@ -110,3 +112,86 @@ class ReferenceV2Repository:
             return_document=ReturnDocument.AFTER,
         )
         return QuizHistoryDocumentV2(**updated)
+
+    async def delete_saved_quiz_by_legacy_id(self, legacy_saved_quiz_id: str):
+        await self.saved_quizzes_collection.delete_one(
+            {"legacy_saved_quiz_id": legacy_saved_quiz_id}
+        )
+
+    async def delete_quiz_history_by_legacy_id(self, legacy_history_id: str):
+        await self.quiz_history_collection.delete_one(
+            {"legacy_history_id": legacy_history_id}
+        )
+
+    async def get_saved_quiz_for_user(
+        self,
+        user_id: str,
+        saved_quiz_id: str,
+    ) -> SavedQuizDocumentV2 | None:
+        query: dict = {"user_id": user_id}
+        try:
+            query["$or"] = [
+                {"_id": ObjectId(saved_quiz_id)},
+                {"legacy_saved_quiz_id": saved_quiz_id},
+            ]
+        except InvalidId:
+            query["legacy_saved_quiz_id"] = saved_quiz_id
+
+        document = await self.saved_quizzes_collection.find_one(query)
+        return SavedQuizDocumentV2(**document) if document else None
+
+    async def update_saved_quiz_display_title(
+        self,
+        user_id: str,
+        saved_quiz_id: str,
+        display_title: str,
+    ) -> SavedQuizDocumentV2 | None:
+        query: dict = {"user_id": user_id}
+        try:
+            query["$or"] = [
+                {"_id": ObjectId(saved_quiz_id)},
+                {"legacy_saved_quiz_id": saved_quiz_id},
+            ]
+        except InvalidId:
+            query["legacy_saved_quiz_id"] = saved_quiz_id
+
+        updated = await self.saved_quizzes_collection.find_one_and_update(
+            query,
+            {"$set": {"display_title": display_title}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return SavedQuizDocumentV2(**updated) if updated else None
+
+    async def get_quiz_history_for_user(
+        self,
+        user_id: str,
+        history_id: str,
+    ) -> QuizHistoryDocumentV2 | None:
+        query: dict = {"user_id": user_id}
+        try:
+            query["$or"] = [
+                {"_id": ObjectId(history_id)},
+                {"legacy_history_id": history_id},
+            ]
+        except InvalidId:
+            query["legacy_history_id"] = history_id
+
+        document = await self.quiz_history_collection.find_one(query)
+        return QuizHistoryDocumentV2(**document) if document else None
+
+    async def delete_quiz_history_for_user(
+        self,
+        user_id: str,
+        history_id: str,
+    ) -> bool:
+        query: dict = {"user_id": user_id}
+        try:
+            query["$or"] = [
+                {"_id": ObjectId(history_id)},
+                {"legacy_history_id": history_id},
+            ]
+        except InvalidId:
+            query["legacy_history_id"] = history_id
+
+        result = await self.quiz_history_collection.delete_one(query)
+        return result.deleted_count > 0

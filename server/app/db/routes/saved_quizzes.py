@@ -18,10 +18,16 @@ from ....app.db.models.saved_quiz_model import SavedQuizModel
 
 from ....app.dependancies import get_current_user
 
+from ....app.db.schemas.quiz_management_schemas import (
+    RenameSavedQuizRequest,
+    SavedQuizRenameResponse,
+)
+from ....app.db.services.quiz_user_library_service import QuizUserLibraryService
 from ....app.db.schemas.user_schemas import UserResponseSchema
 
 
 router = APIRouter(prefix="/saved-quizzes", tags=["Saved Quizzes"])
+quiz_user_library_service = QuizUserLibraryService()
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -134,4 +140,33 @@ async def get_saved_quiz(
 
     except Exception as e:
 
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/{quiz_id}/rename",
+    status_code=status.HTTP_200_OK,
+    response_model=SavedQuizRenameResponse,
+)
+async def rename_saved_quiz_item(
+    quiz_id: str,
+    payload: RenameSavedQuizRequest,
+    current_user: UserResponseSchema = Depends(get_current_user),
+):
+    try:
+        if not payload.title.strip():
+            raise HTTPException(status_code=400, detail="Title cannot be empty")
+
+        updated = await quiz_user_library_service.rename_saved_quiz(
+            user_id=str(current_user.id),
+            saved_quiz_id=quiz_id,
+            title=payload.title.strip(),
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+
+        return {"message": "Quiz renamed successfully", "quiz": updated}
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

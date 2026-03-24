@@ -66,6 +66,7 @@ class SavedQuizDocumentV2(BaseModel):
     id: ObjectId = Field(default_factory=ObjectId, alias="_id")
     user_id: str
     quiz_id: str
+    display_title: Optional[str] = None
     legacy_saved_quiz_id: Optional[str] = None
     saved_at: datetime = Field(default_factory=datetime.utcnow)
 
