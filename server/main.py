@@ -31,10 +31,10 @@ from .app.db.routes.folder_routes import router as folder_routes
 from .app.db.routes.get_categories import router as get_categories_router
 from .app.db.routes.get_quiz_history import router as get_quiz_history_router
 from .app.db.routes.save_quiz_history import router as save_quiz_router
-from .app.dependancies import get_current_user
 from .app.quiz.routers.quiz import router as quiz_router
 from .app.share.routes.share_routes import router as share_router
 from .schemas.query import DownloadQuizQuery, GenerateQuizQuery, GetUserQuizHistoryQuery
+from .app.dependancies import get_current_user, get_current_user_optional, get_verified_user
 
 
 logging.basicConfig(
@@ -87,10 +87,13 @@ app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 app.include_router(token_router.router, prefix="/api", tags=["Token"])
 app.include_router(saved_quizzes.router, prefix="/api", tags=["Saved Quizzes"])
 app.include_router(folder_routes, prefix="/api/folders", tags=["Folders"])
+
 app.include_router(save_quiz_router, prefix="/api")
 app.include_router(get_quiz_history_router, prefix="/api")
 app.include_router(get_categories_router, prefix="/api")
 app.database = database
+
+
 
 
 @app.get("/api")
@@ -139,8 +142,14 @@ async def get_user_quiz_history_handler(
     request: Request,
     response: Response,
     query: GetUserQuizHistoryQuery = Body(...),
+    current_user: UserOut = Depends(get_verified_user),  
+
 ) -> List[Any]:
     logger.info("Received query: %s", query)
+
+    if query.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     return get_user_quiz_history(query.user_id)
 
 
@@ -150,20 +159,24 @@ async def download_quiz_handler(
     request: Request,
     response: Response,
     query: DownloadQuizQuery = Depends(),
+    current_user: UserOut | None = Depends(get_current_user_optional),
 ) -> StreamingResponse:
     logger.info("Received query: %s", query)
-
     if query.quiz_id:
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        if not current_user.is_verified:
+            raise HTTPException(status_code=403, detail="Email not verified")
         return await download_quiz_by_id(
             quiz_id=query.quiz_id,
             file_format=query.format,
+            user_id=current_user.id,
         )
 
     return download_mock_quiz(
-        query.format,
-        query.question_type,
-        query.num_question,
-    )
+        query.format, 
+        query.question_type, 
+        query.num_question)
 
 
 @app.get("/ping-redis")

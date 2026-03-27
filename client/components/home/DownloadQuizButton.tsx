@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import publicApi from "../../lib/functions/publicApi";
+import { api } from "../../lib/functions/auth";
 import { Observable } from "rxjs";
 import { QueryPattern } from "../../constants/patterns";
 import { DownloadQuizProps } from "../../interfaces/props";
@@ -42,7 +43,9 @@ export default function DownloadQuizButton({
             },
       };
 
-      publicApi
+      const client = isRealQuiz ? api : publicApi;
+
+      client
         .get("/download-quiz", requestConfig)
         .then((response) => {
           const url = window.URL.createObjectURL(new Blob([response.data]));

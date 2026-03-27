@@ -6,6 +6,7 @@ from .query_patterns import QueryPattern
 
 class DownloadQuizQuery(BaseModel):
     pattern: Optional[str] = Field(QueryPattern.DOWNLOAD_QUIZ)
+    user_id: Optional[str] = Field(None, description="User's id")
     format: str = Field("txt", description="File format for the quiz data (txt, csv, pdf, docx)")
     quiz_id: Optional[str] = Field(
         None,
