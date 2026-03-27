@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     QUIZ_V2_WRITE_MODE: Literal["legacy_only", "dual_write"] = "dual_write"
     QUIZ_V2_FAIL_OPEN: bool = True
     QUIZ_V2_STRUCTURED_LOGGING: bool = True
+    V2_BACKFILL_BATCH_SIZE: int = 200
+    V2_BACKFILL_DRY_RUN: bool = True
+    V2_BACKFILL_START_AFTER_ID: Optional[str] = None
+    V2_BACKFILL_LIMIT: Optional[int] = None
+    V2_BACKFILL_COLLECTIONS: str = "quizzes,saved,history,folders"
+    V2_BACKFILL_RUN_ID: Optional[str] = None
+    V2_BACKFILL_LOCK_LEASE_SECONDS: int = 600
 
     model_config = SettingsConfigDict(
         env_file=".env",
