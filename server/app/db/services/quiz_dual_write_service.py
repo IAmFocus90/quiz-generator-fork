@@ -16,6 +16,7 @@ from server.app.db.core.connection import (
     get_saved_quizzes_v2_collection,
 )
 from server.app.db.crud.quiz_write_service import CanonicalQuizWriteService
+from server.app.db.services.legacy_quiz_resolution_service import LegacyQuizResolutionService
 from server.app.db.v2.models.reference_models import (
     FolderDocumentV2,
     FolderItemDocumentV2,
@@ -53,6 +54,11 @@ class QuizDualWriteService:
             quizzes_collection
             if quizzes_collection is not None
             else get_quizzes_collection()
+        )
+        self.legacy_resolution_service = LegacyQuizResolutionService(
+            canonical_service=self.canonical_service,
+            ai_generated_quizzes_collection=self.ai_generated_quizzes_collection,
+            quizzes_collection=self.quizzes_collection,
         )
 
     @property
@@ -126,6 +132,14 @@ class QuizDualWriteService:
             )
             if existing:
                 return existing
+            matched_legacy_quiz = await self.legacy_resolution_service.resolve_from_legacy_structure(
+                title=title,
+                quiz_type=quiz_type,
+                questions=questions,
+                allow_create=True,
+            )
+            if matched_legacy_quiz:
+                return matched_legacy_quiz
             raise ValueError("Cannot create canonical quiz without answer data")
         quiz_document = self.canonical_service.build_quiz_document(
             title=title,
@@ -142,41 +156,7 @@ class QuizDualWriteService:
         return await self.canonical_service.find_or_create_quiz_v2_by_fingerprint(quiz_document)
 
     async def _resolve_canonical_from_source_quiz_id(self, source_quiz_id: str | None):
-        if not source_quiz_id:
-            return None
-
-        canonical_quiz = await self.canonical_service.repository.find_by_legacy_mapping(
-            "ai_generated_quizzes",
-            source_quiz_id,
-        )
-        if canonical_quiz:
-            return canonical_quiz
-
-        canonical_quiz = await self.canonical_service.repository.find_by_legacy_mapping(
-            "quizzes",
-            source_quiz_id,
-        )
-        if canonical_quiz:
-            return canonical_quiz
-
-        legacy_ai_quiz = await self.ai_generated_quizzes_collection.find_one({"_id": source_quiz_id})
-        if legacy_ai_quiz and legacy_ai_quiz.get("canonical_quiz_id"):
-            return await self.canonical_service.get_quiz_v2_by_id(legacy_ai_quiz["canonical_quiz_id"])
-
-        try:
-            from bson import ObjectId
-            object_id = ObjectId(source_quiz_id)
-        except Exception:
-            object_id = None
-
-        if object_id is not None:
-            legacy_seeded_quiz = await self.quizzes_collection.find_one({"_id": object_id})
-            if legacy_seeded_quiz and legacy_seeded_quiz.get("canonical_quiz_id"):
-                return await self.canonical_service.get_quiz_v2_by_id(
-                    legacy_seeded_quiz["canonical_quiz_id"]
-                )
-
-        return None
+        return await self.legacy_resolution_service.resolve_from_source_quiz_id(source_quiz_id)
 
 
     async def mirror_legacy_manual_quiz(self, legacy_quiz_id: str, legacy_quiz_doc: dict):
@@ -481,6 +461,7 @@ class QuizDualWriteService:
             )
             return result
         except Exception as exc:
+            extra_fields = exc.to_log_fields() if hasattr(exc, "to_log_fields") else {}
             self._log(
                 "quiz_dual_write_v2_failed",
                 operation=operation,
@@ -488,6 +469,7 @@ class QuizDualWriteService:
                 legacy_id=legacy_id,
                 write_mode=self.write_mode,
                 error=str(exc),
+                **extra_fields,
             )
             if settings.QUIZ_V2_FAIL_OPEN:
                 return None

@@ -310,3 +310,58 @@ async def test_dual_writes_migration_folder_create_and_add_dual_write(
     assert folder_item_v2 is not None
     assert folder_item_v2["quiz_id"] == str(canonical_quiz["_id"])
     assert folder_item_v2["quiz_id"] == saved_doc["canonical_quiz_id"]
+
+
+@pytest.mark.asyncio
+async def test_dual_writes_migration_saved_quiz_without_quiz_id_reuses_legacy_ai_source(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(saved_quiz_crud, "collection", dual_write_db["saved_quizzes"])
+    monkeypatch.setattr(saved_quiz_crud, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "dual_write")
+
+    ai_id = ObjectId()
+    await dual_write_db["ai_generated_quizzes"].insert_one(
+        {
+            "_id": ai_id,
+            "user_id": "user-entropy",
+            "profession": "Entropy",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What is entropy?",
+                    "options": ["Order", "Disorder"],
+                    "answer": "Disorder",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    legacy_id = await saved_quiz_crud.save_quiz(
+        user_id="user-entropy",
+        title="Entropy Quiz",
+        question_type="multichoice",
+        questions=[
+            {
+                "question": "What is entropy?",
+                "options": ["Order", "Disorder"],
+                "question_type": "multichoice",
+            }
+        ],
+    )
+
+    legacy_doc = await dual_write_db["saved_quizzes"].find_one({"_id": ObjectId(legacy_id)})
+    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"legacy_saved_quiz_id": legacy_id})
+    canonical = await dual_write_db["quizzes_v2"].find_one(
+        {"legacy_source_collection": "ai_generated_quizzes", "legacy_quiz_id": str(ai_id)}
+    )
+
+    assert legacy_doc is not None
+    assert saved_reference is not None
+    assert canonical is not None
+    assert legacy_doc["canonical_quiz_id"] == str(canonical["_id"])
+    assert saved_reference["quiz_id"] == str(canonical["_id"])

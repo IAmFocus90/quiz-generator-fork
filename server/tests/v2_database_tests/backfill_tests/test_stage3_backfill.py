@@ -304,3 +304,122 @@ async def test_stage3_folder_backfill_with_structure_only_payload_does_not_crash
     assert summary.malformed == 0
     assert summary.unresolved == 0
     assert summary.inserted == 2
+
+
+@pytest.mark.asyncio
+async def test_stage3_backfill_saved_quiz_without_answers_matches_legacy_ai_source(
+    backfill_db,
+    backfill_context_factory,
+):
+    ai_id = ObjectId()
+    saved_id = ObjectId()
+
+    await backfill_db["ai_generated_quizzes"].insert_one(
+        {
+            "_id": ai_id,
+            "profession": "Entropy",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What is entropy a measure of in a system?",
+                    "options": ["Energy", "Disorder", "Temperature", "Volume"],
+                    "answer": "Disorder",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+    await backfill_db["saved_quizzes"].insert_one(
+        {
+            "_id": saved_id,
+            "user_id": "user-entropy",
+            "title": "Entropy Quiz",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What is entropy a measure of in a system?",
+                    "options": ["Energy", "Disorder", "Temperature", "Volume"],
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    context = backfill_context_factory(collections=["saved"], run_id="saved-legacy-structure")
+    summary = await backfill_saved_quizzes(context)
+
+    assert summary.unresolved == 0
+    assert summary.conflicts == 0
+    assert summary.inserted == 1
+
+    saved_v2 = await backfill_db["saved_quizzes_v2"].find_one({"legacy_saved_quiz_id": str(saved_id)})
+    canonical = await backfill_db["quizzes_v2"].find_one(
+        {"legacy_source_collection": "ai_generated_quizzes", "legacy_quiz_id": str(ai_id)}
+    )
+
+    assert saved_v2 is not None
+    assert canonical is not None
+    assert saved_v2["quiz_id"] == str(canonical["_id"])
+
+
+@pytest.mark.asyncio
+async def test_stage3_backfill_saved_quiz_reports_conflict_for_multiple_legacy_matches(
+    backfill_db,
+    backfill_context_factory,
+):
+    await backfill_db["ai_generated_quizzes"].insert_many(
+        [
+            {
+                "_id": ObjectId(),
+                "profession": "Entropy",
+                "question_type": "multichoice",
+                "questions": [
+                    {
+                        "question": "What is entropy?",
+                        "options": ["Order", "Disorder"],
+                        "answer": "Disorder",
+                        "question_type": "multichoice",
+                    }
+                ],
+            },
+            {
+                "_id": ObjectId(),
+                "profession": "Entropy",
+                "question_type": "multichoice",
+                "questions": [
+                    {
+                        "question": "What is entropy?",
+                        "options": ["Order", "Disorder"],
+                        "answer": "Disorder",
+                        "question_type": "multichoice",
+                    }
+                ],
+            },
+        ]
+    )
+    saved_id = ObjectId()
+    await backfill_db["saved_quizzes"].insert_one(
+        {
+            "_id": saved_id,
+            "user_id": "user-entropy",
+            "title": "Entropy Quiz",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What is entropy?",
+                    "options": ["Order", "Disorder"],
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    context = backfill_context_factory(collections=["saved"], run_id="saved-conflict")
+    summary = await backfill_saved_quizzes(context)
+
+    assert summary.inserted == 0
+    assert summary.conflicts == 1
+    assert summary.unresolved == 0
+    assert summary.conflict_examples[0]["record_id"] == str(saved_id)
+    assert len(summary.conflict_examples[0]["candidate_ids"]) == 2
+    assert await backfill_db["saved_quizzes_v2"].count_documents({}) == 0

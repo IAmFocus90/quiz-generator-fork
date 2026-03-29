@@ -34,20 +34,20 @@ class CollectionMigrationSummary:
     def finish(self):
         self.ended_at = utcnow()
 
-    def add_unresolved(self, *, record_id: str, reason: str):
+    def add_unresolved(self, *, record_id: str, reason: str, **details: Any):
         self.unresolved += 1
         if len(self.unresolved_examples) < 25:
-            self.unresolved_examples.append({"record_id": record_id, "reason": reason})
+            self.unresolved_examples.append({"record_id": record_id, "reason": reason, **details})
 
-    def add_malformed(self, *, record_id: str, reason: str):
+    def add_malformed(self, *, record_id: str, reason: str, **details: Any):
         self.malformed += 1
         if len(self.malformed_examples) < 25:
-            self.malformed_examples.append({"record_id": record_id, "reason": reason})
+            self.malformed_examples.append({"record_id": record_id, "reason": reason, **details})
 
-    def add_conflict(self, *, record_id: str, reason: str):
+    def add_conflict(self, *, record_id: str, reason: str, **details: Any):
         self.conflicts += 1
         if len(self.conflict_examples) < 25:
-            self.conflict_examples.append({"record_id": record_id, "reason": reason})
+            self.conflict_examples.append({"record_id": record_id, "reason": reason, **details})
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

@@ -10,6 +10,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
 from server.app.db.crud.quiz_write_service import CanonicalQuizWriteService
+from server.app.db.services.legacy_quiz_resolution_service import (
+    LegacyQuizStructureConflictError,
+)
 from server.app.db.v2.models.reference_models import (
     FolderDocumentV2,
     FolderItemDocumentV2,
@@ -245,7 +248,21 @@ async def backfill_saved_quizzes(context: MigrationContext) -> CollectionMigrati
                 summary.skipped += 1
                 continue
             try:
-                canonical_quiz = await context.resolver.resolve_saved_quiz(doc)
+                canonical_quiz = await context.resolver.resolve_saved_quiz(
+                    doc,
+                    allow_create=not context.config.dry_run,
+                )
+            except LegacyQuizStructureConflictError as exc:
+                conflict_details = exc.to_log_fields()
+                summary.add_conflict(record_id=record_id, reason=str(exc), **conflict_details)
+                log_migration_event(
+                    "v2_backfill_record_conflict",
+                    collection=summary.collection,
+                    record_id=record_id,
+                    run_id=context.config.run_id,
+                    **conflict_details,
+                )
+                continue
             except Exception as exc:
                 summary.add_malformed(record_id=record_id, reason=str(exc))
                 continue
@@ -326,6 +343,17 @@ async def backfill_quiz_history(context: MigrationContext) -> CollectionMigratio
                     doc,
                     allow_create=not context.config.dry_run,
                 )
+            except LegacyQuizStructureConflictError as exc:
+                conflict_details = exc.to_log_fields()
+                summary.add_conflict(record_id=record_id, reason=str(exc), **conflict_details)
+                log_migration_event(
+                    "v2_backfill_record_conflict",
+                    collection=summary.collection,
+                    record_id=record_id,
+                    run_id=context.config.run_id,
+                    **conflict_details,
+                )
+                continue
             except Exception as exc:
                 summary.add_malformed(record_id=record_id, reason=str(exc))
                 continue
@@ -434,7 +462,22 @@ async def backfill_folders(context: MigrationContext) -> CollectionMigrationSumm
                     summary.inserted += 1
             for item in folder.get("quizzes", []):
                 item_id = str(item.get("_id"))
-                canonical_quiz = await context.resolver.resolve_folder_item(item)
+                try:
+                    canonical_quiz = await context.resolver.resolve_folder_item(
+                        item,
+                        allow_create=not context.config.dry_run,
+                    )
+                except LegacyQuizStructureConflictError as exc:
+                    conflict_details = exc.to_log_fields()
+                    summary.add_conflict(record_id=item_id, reason=str(exc), **conflict_details)
+                    log_migration_event(
+                        "v2_backfill_record_conflict",
+                        collection=summary.collection,
+                        record_id=item_id,
+                        run_id=context.config.run_id,
+                        **conflict_details,
+                    )
+                    continue
                 if not canonical_quiz:
                     summary.add_unresolved(record_id=item_id, reason="No canonical quiz match for folder item")
                     continue

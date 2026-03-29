@@ -5,6 +5,9 @@ from typing import Any, Optional
 from motor.motor_asyncio import AsyncIOMotorCollection
 
 from server.app.db.crud.quiz_write_service import CanonicalQuizWriteService
+from server.app.db.services.legacy_quiz_resolution_service import (
+    LegacyQuizResolutionService,
+)
 
 
 class LegacyQuizResolver:
@@ -20,6 +23,11 @@ class LegacyQuizResolver:
         self.ai_generated_quizzes_collection = ai_generated_quizzes_collection
         self.quizzes_collection = quizzes_collection
         self.saved_quizzes_collection = saved_quizzes_collection
+        self.legacy_resolution_service = LegacyQuizResolutionService(
+            canonical_service=canonical_service,
+            ai_generated_quizzes_collection=ai_generated_quizzes_collection,
+            quizzes_collection=quizzes_collection,
+        )
 
     def _build_structure_fingerprint(self, *, title: str, quiz_type: str, questions: list[Any]) -> str:
         normalized_questions = self.canonical_service.normalize_questions(questions)
@@ -37,43 +45,10 @@ class LegacyQuizResolver:
         return self.canonical_service.build_content_fingerprint(structure_payload)
 
     async def resolve_from_canonical_backref(self, canonical_quiz_id: str | None):
-        if not canonical_quiz_id:
-            return None
-        return await self.canonical_service.get_quiz_v2_by_id(canonical_quiz_id)
+        return await self.legacy_resolution_service.resolve_from_canonical_backref(canonical_quiz_id)
 
     async def resolve_from_source_quiz_id(self, source_quiz_id: str | None):
-        if not source_quiz_id:
-            return None
-
-        canonical_quiz = await self.canonical_service.repository.find_by_legacy_mapping(
-            "ai_generated_quizzes",
-            source_quiz_id,
-        )
-        if canonical_quiz:
-            return canonical_quiz
-
-        canonical_quiz = await self.canonical_service.repository.find_by_legacy_mapping(
-            "quizzes",
-            source_quiz_id,
-        )
-        if canonical_quiz:
-            return canonical_quiz
-
-        legacy_ai = await self.ai_generated_quizzes_collection.find_one({"_id": source_quiz_id})
-        if legacy_ai and legacy_ai.get("canonical_quiz_id"):
-            return await self.resolve_from_canonical_backref(legacy_ai["canonical_quiz_id"])
-
-        try:
-            from bson import ObjectId
-            object_id = ObjectId(source_quiz_id)
-        except Exception:
-            object_id = None
-
-        if object_id is not None:
-            legacy_manual = await self.quizzes_collection.find_one({"_id": object_id})
-            if legacy_manual and legacy_manual.get("canonical_quiz_id"):
-                return await self.resolve_from_canonical_backref(legacy_manual["canonical_quiz_id"])
-        return None
+        return await self.legacy_resolution_service.resolve_from_source_quiz_id(source_quiz_id)
 
     async def resolve_from_payload(
         self,
@@ -87,6 +62,14 @@ class LegacyQuizResolver:
         normalized_questions = self.canonical_service.normalize_questions(questions)
         has_complete_answers = all(question.get("correct_answer") for question in normalized_questions)
         if not has_complete_answers:
+            canonical_quiz = await self.legacy_resolution_service.resolve_from_legacy_structure(
+                title=title,
+                quiz_type=quiz_type,
+                questions=questions,
+                allow_create=allow_create,
+            )
+            if canonical_quiz:
+                return canonical_quiz
             structure_fingerprint = self._build_structure_fingerprint(
                 title=title,
                 quiz_type=quiz_type,
@@ -115,13 +98,21 @@ class LegacyQuizResolver:
             return await self.canonical_service.find_or_create_quiz_v2_by_fingerprint(quiz_document)
         return None
 
-    async def resolve_saved_quiz(self, legacy_saved_doc: dict):
+    async def resolve_saved_quiz(self, legacy_saved_doc: dict, *, allow_create: bool = False):
         canonical_quiz = await self.resolve_from_canonical_backref(
             legacy_saved_doc.get("canonical_quiz_id")
         )
         if canonical_quiz:
             return canonical_quiz
         canonical_quiz = await self.resolve_from_source_quiz_id(legacy_saved_doc.get("quiz_id"))
+        if canonical_quiz:
+            return canonical_quiz
+        canonical_quiz = await self.legacy_resolution_service.resolve_from_legacy_structure(
+            title=legacy_saved_doc["title"],
+            quiz_type=legacy_saved_doc["question_type"],
+            questions=legacy_saved_doc["questions"],
+            allow_create=allow_create,
+        )
         if canonical_quiz:
             return canonical_quiz
         return await self.resolve_from_payload(
@@ -150,7 +141,7 @@ class LegacyQuizResolver:
             allow_create=allow_create,
         )
 
-    async def resolve_folder_item(self, legacy_folder_item: dict):
+    async def resolve_folder_item(self, legacy_folder_item: dict, *, allow_create: bool = False):
         canonical_quiz = await self.resolve_from_canonical_backref(
             legacy_folder_item.get("canonical_quiz_id")
         )
@@ -175,7 +166,7 @@ class LegacyQuizResolver:
             except Exception:
                 saved_doc = None
             if saved_doc:
-                canonical_quiz = await self.resolve_saved_quiz(saved_doc)
+                canonical_quiz = await self.resolve_saved_quiz(saved_doc, allow_create=allow_create)
                 if canonical_quiz:
                     return canonical_quiz
 
@@ -187,5 +178,5 @@ class LegacyQuizResolver:
             or "multichoice",
             questions=legacy_folder_item.get("questions")
             or quiz_payload.get("questions", []),
-            allow_create=False,
+            allow_create=allow_create,
         )
