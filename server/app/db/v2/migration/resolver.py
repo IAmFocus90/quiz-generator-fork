@@ -70,6 +70,13 @@ class LegacyQuizResolver:
             )
             if canonical_quiz:
                 return canonical_quiz
+            canonical_quiz = await self.legacy_resolution_service.resolve_existing_v2_from_question_structure(
+                title=title,
+                quiz_type=quiz_type,
+                questions=questions,
+            )
+            if canonical_quiz:
+                return canonical_quiz
             structure_fingerprint = self._build_structure_fingerprint(
                 title=title,
                 quiz_type=quiz_type,
@@ -86,6 +93,13 @@ class LegacyQuizResolver:
         )
         existing = await self.canonical_service.repository.find_by_content_fingerprint(
             quiz_document.content_fingerprint
+        )
+        if existing:
+            return existing
+        existing = await self.legacy_resolution_service.resolve_existing_v2_from_question_structure(
+            title=title,
+            quiz_type=quiz_type,
+            questions=questions,
         )
         if existing:
             return existing
@@ -132,9 +146,12 @@ class LegacyQuizResolver:
         if canonical_quiz:
             return canonical_quiz
         return await self.resolve_from_payload(
-            title=legacy_history_doc.get("quiz_name")
-            or legacy_history_doc.get("profession")
-            or "Quiz History",
+            title=self.legacy_resolution_service.choose_preferred_title(
+                title=legacy_history_doc.get("quiz_name"),
+                fallback_title=legacy_history_doc.get("profession"),
+                quiz_type=legacy_history_doc.get("question_type"),
+                default="Quiz History",
+            ),
             description=legacy_history_doc.get("custom_instruction"),
             quiz_type=legacy_history_doc["question_type"],
             questions=legacy_history_doc["questions"],

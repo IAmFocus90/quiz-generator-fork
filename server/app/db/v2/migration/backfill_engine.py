@@ -276,7 +276,7 @@ async def backfill_saved_quizzes(context: MigrationContext) -> CollectionMigrati
                 saved_at=_stable_legacy_timestamp(doc, "saved_at", "created_at"),
             )
             existing = await context.database["saved_quizzes_v2"].find_one(
-                {"user_id": doc["user_id"], "quiz_id": str(canonical_quiz.id)}
+                {"legacy_saved_quiz_id": record_id}
             )
             if context.config.dry_run:
                 if existing:

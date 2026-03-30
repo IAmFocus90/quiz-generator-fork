@@ -140,6 +140,13 @@ class QuizDualWriteService:
             )
             if matched_legacy_quiz:
                 return matched_legacy_quiz
+            existing_v2 = await self.legacy_resolution_service.resolve_existing_v2_from_question_structure(
+                title=title,
+                quiz_type=quiz_type,
+                questions=questions,
+            )
+            if existing_v2:
+                return existing_v2
             raise ValueError("Cannot create canonical quiz without answer data")
         quiz_document = self.canonical_service.build_quiz_document(
             title=title,
@@ -151,6 +158,13 @@ class QuizDualWriteService:
             legacy_source_collection=legacy_source_collection,
             legacy_quiz_id=legacy_quiz_id,
         )
+        existing = await self.legacy_resolution_service.resolve_existing_v2_from_question_structure(
+            title=title,
+            quiz_type=quiz_type,
+            questions=normalized_questions,
+        )
+        if existing:
+            return existing
         if legacy_source_collection and legacy_quiz_id:
             return await self.canonical_service.upsert_quiz_v2_by_legacy_mapping(quiz_document)
         return await self.canonical_service.find_or_create_quiz_v2_by_fingerprint(quiz_document)
@@ -252,9 +266,12 @@ class QuizDualWriteService:
                 )
             if not canonical_quiz:
                 canonical_quiz = await self._mirror_quiz_document(
-                    title=legacy_history_doc.get("quiz_name")
-                    or legacy_history_doc.get("profession")
-                    or "Quiz History",
+                    title=self.legacy_resolution_service.choose_preferred_title(
+                        title=legacy_history_doc.get("quiz_name"),
+                        fallback_title=legacy_history_doc.get("profession"),
+                        quiz_type=legacy_history_doc.get("question_type"),
+                        default="Quiz History",
+                    ),
                     description=legacy_history_doc.get("custom_instruction"),
                     quiz_type=legacy_history_doc["question_type"],
                     owner_user_id=None,

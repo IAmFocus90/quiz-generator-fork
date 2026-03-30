@@ -28,7 +28,10 @@ class LegacyQuizStructureConflictError(ValueError):
         self.title = title
         self.quiz_type = quiz_type
         self.candidates = candidates
-        candidate_ids = ", ".join(candidate["legacy_quiz_id"] for candidate in candidates)
+        candidate_ids = ", ".join(
+            candidate.get("legacy_quiz_id") or candidate.get("canonical_quiz_id") or "unknown"
+            for candidate in candidates
+        )
         super().__init__(
             f"Multiple legacy source matches for '{title}' ({quiz_type}): {candidate_ids}"
         )
@@ -37,7 +40,10 @@ class LegacyQuizStructureConflictError(ValueError):
         return {
             "title": self.title,
             "quiz_type": self.quiz_type,
-            "candidate_ids": [candidate["legacy_quiz_id"] for candidate in self.candidates],
+            "candidate_ids": [
+                candidate.get("legacy_quiz_id") or candidate.get("canonical_quiz_id")
+                for candidate in self.candidates
+            ],
             "candidates": self.candidates,
         }
 
@@ -75,6 +81,33 @@ class LegacyQuizResolutionService:
     @staticmethod
     def _candidate_display_title(document: dict[str, Any]) -> str:
         return document.get("profession") or document.get("title") or "Untitled Quiz"
+
+    @classmethod
+    def is_generic_quiz_title(cls, title: str | None, quiz_type: str | None = None) -> bool:
+        normalized_title = cls._normalize_title(title)
+        if not normalized_title:
+            return True
+        generic_titles = {"quiz history"}
+        if quiz_type:
+            generic_titles.add(cls._normalize_title(f"{quiz_type} Quiz"))
+        return normalized_title in generic_titles
+
+    @classmethod
+    def choose_preferred_title(
+        cls,
+        *,
+        title: str | None,
+        fallback_title: str | None = None,
+        quiz_type: str | None = None,
+        default: str = "Untitled Quiz",
+    ) -> str:
+        if title and not cls.is_generic_quiz_title(title, quiz_type):
+            return title.strip()
+        if fallback_title and fallback_title.strip():
+            return fallback_title.strip()
+        if title and title.strip():
+            return title.strip()
+        return default
 
     def _build_question_structure_fingerprint(self, *, quiz_type: str, questions: list[Any]) -> str:
         normalized_questions = self.canonical_service.normalize_questions(questions)
@@ -171,6 +204,12 @@ class LegacyQuizResolutionService:
             "legacy_source_collection": match.source_collection,
             "legacy_quiz_id": match.legacy_quiz_id,
             "title": self._candidate_display_title(match.document),
+        }
+
+    def _v2_candidate_log_payload(self, document: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "canonical_quiz_id": str(document["_id"]),
+            "title": document.get("title"),
         }
 
     def _select_preferred_candidate(
@@ -289,4 +328,55 @@ class LegacyQuizResolutionService:
         return await self.resolve_or_build_from_legacy_source_match(
             match,
             allow_create=allow_create,
+        )
+
+    async def resolve_existing_v2_from_question_structure(
+        self,
+        *,
+        title: str,
+        quiz_type: str,
+        questions: list[Any],
+    ):
+        target_fingerprint = self._build_question_structure_fingerprint(
+            quiz_type=quiz_type,
+            questions=questions,
+        )
+        candidates: list[dict[str, Any]] = []
+        async for document in self.canonical_service.repository.collection.find(
+            {"quiz_type": quiz_type, "status": {"$ne": "deleted"}},
+            {"_id": 1, "title": 1, "quiz_type": 1, "questions": 1},
+        ):
+            candidate_fingerprint = self._build_question_structure_fingerprint(
+                quiz_type=document.get("quiz_type") or "multichoice",
+                questions=document.get("questions", []),
+            )
+            if candidate_fingerprint != target_fingerprint:
+                continue
+            candidates.append(document)
+
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return await self.canonical_service.get_quiz_v2_by_id(str(candidates[0]["_id"]))
+
+        normalized_title = self._normalize_title(title)
+        if normalized_title:
+            title_matches = [
+                candidate
+                for candidate in candidates
+                if self._normalize_title(candidate.get("title")) == normalized_title
+            ]
+            if len(title_matches) == 1:
+                return await self.canonical_service.get_quiz_v2_by_id(str(title_matches[0]["_id"]))
+            if len(title_matches) > 1:
+                raise LegacyQuizStructureConflictError(
+                    title=title,
+                    quiz_type=quiz_type,
+                    candidates=[self._v2_candidate_log_payload(candidate) for candidate in title_matches],
+                )
+
+        raise LegacyQuizStructureConflictError(
+            title=title,
+            quiz_type=quiz_type,
+            candidates=[self._v2_candidate_log_payload(candidate) for candidate in candidates],
         )

@@ -1,5 +1,6 @@
 import pytest
 from bson import ObjectId
+from datetime import datetime
 
 from ....app.db.core.config import settings
 from ....app.db.crud import folder_crud, quiz_crud, saved_quiz_crud, update_quiz_history
@@ -365,3 +366,113 @@ async def test_dual_writes_migration_saved_quiz_without_quiz_id_reuses_legacy_ai
     assert canonical is not None
     assert legacy_doc["canonical_quiz_id"] == str(canonical["_id"])
     assert saved_reference["quiz_id"] == str(canonical["_id"])
+
+
+@pytest.mark.asyncio
+async def test_dual_writes_migration_saved_quiz_without_quiz_id_reuses_existing_v2_question_match(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(saved_quiz_crud, "collection", dual_write_db["saved_quizzes"])
+    monkeypatch.setattr(saved_quiz_crud, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "dual_write")
+
+    existing_quiz_id = ObjectId()
+    await dual_write_db["quizzes_v2"].insert_one(
+        {
+            "_id": existing_quiz_id,
+            "title": "multichoice Quiz",
+            "quiz_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What is the capital of Russia?",
+                    "correct_answer": "B) Moscow",
+                    "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                },
+                {
+                    "question": "Russia is the largest country in the world by what measure?",
+                    "correct_answer": "B) Land area",
+                    "options": ["A) Population", "B) Land area", "C) Military size", "D) Number of cities"],
+                },
+            ],
+            "description": "Geopolitical power",
+            "owner_user_id": None,
+            "visibility": "private",
+            "status": "active",
+            "source": "legacy",
+            "tags": [],
+            "legacy_source_collection": None,
+            "legacy_quiz_id": None,
+            "content_fingerprint": "dual-write-content",
+            "structure_fingerprint": "dual-write-structure",
+            "schema_version": 1,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+    )
+
+    legacy_id = await saved_quiz_crud.save_quiz(
+        user_id="user-russia",
+        title="Russia",
+        question_type="multichoice",
+        questions=[
+            {
+                "question": "What is the capital of Russia?",
+                "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                "question_type": "multichoice",
+            },
+            {
+                "question": "Russia is the largest country in the world by what measure?",
+                "options": ["A) Population", "B) Land area", "C) Military size", "D) Number of cities"],
+                "question_type": "multichoice",
+            },
+        ],
+    )
+
+    legacy_doc = await dual_write_db["saved_quizzes"].find_one({"_id": ObjectId(legacy_id)})
+    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"legacy_saved_quiz_id": legacy_id})
+
+    assert legacy_doc is not None
+    assert saved_reference is not None
+    assert legacy_doc["canonical_quiz_id"] == str(existing_quiz_id)
+    assert saved_reference["quiz_id"] == str(existing_quiz_id)
+
+
+@pytest.mark.asyncio
+async def test_dual_writes_migration_history_prefers_profession_over_generic_quiz_name(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(update_quiz_history, "quiz_history_collection", dual_write_db["quiz_history"])
+    monkeypatch.setattr(update_quiz_history, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "dual_write")
+
+    legacy_id = await update_quiz_history.update_quiz_history(
+        {
+            "user_id": "user-russia",
+            "quiz_name": "multichoice Quiz",
+            "question_type": "multichoice",
+            "profession": "Russia",
+            "audience_type": "students",
+            "difficulty_level": "easy",
+            "custom_instruction": "Geopolitical power",
+            "questions": [
+                {
+                    "question": "What is the capital of Russia?",
+                    "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                    "answer": "B) Moscow",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    history_reference = await dual_write_db["quiz_history_v2"].find_one({"legacy_history_id": legacy_id})
+    canonical = await dual_write_db["quizzes_v2"].find_one({"_id": ObjectId(history_reference["quiz_id"])})
+
+    assert history_reference is not None
+    assert canonical["title"] == "Russia"

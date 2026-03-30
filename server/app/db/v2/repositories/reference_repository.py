@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo import ReturnDocument
 
@@ -21,6 +23,12 @@ class ReferenceV2Repository:
         self.folder_items_collection = folder_items_collection
         self.saved_quizzes_collection = saved_quizzes_collection
         self.quiz_history_collection = quiz_history_collection
+
+    @staticmethod
+    def _normalize_datetime(value: datetime) -> datetime:
+        if value.tzinfo is not None:
+            return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value
 
     async def insert_folder(self, folder: FolderDocumentV2) -> FolderDocumentV2:
         payload = folder.model_dump(by_alias=True)
@@ -91,8 +99,46 @@ class ReferenceV2Repository:
         payload = saved_quiz.model_dump(by_alias=True)
         payload.pop("_id", None)
         saved_at = payload.pop("saved_at")
+        legacy_match = None
+        if saved_quiz.legacy_saved_quiz_id:
+            legacy_match = await self.saved_quizzes_collection.find_one(
+                {"legacy_saved_quiz_id": saved_quiz.legacy_saved_quiz_id}
+            )
+        target_match = await self.saved_quizzes_collection.find_one(
+            {"user_id": saved_quiz.user_id, "quiz_id": saved_quiz.quiz_id}
+        )
+
+        if legacy_match and target_match and legacy_match["_id"] != target_match["_id"]:
+            merged_saved_at = min(
+                self._normalize_datetime(saved_at),
+                self._normalize_datetime(legacy_match.get("saved_at", saved_at)),
+                self._normalize_datetime(target_match.get("saved_at", saved_at)),
+            )
+            updated = await self.saved_quizzes_collection.find_one_and_update(
+                {"_id": target_match["_id"]},
+                {
+                    "$set": {
+                        **payload,
+                        "saved_at": merged_saved_at,
+                    }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+            await self.saved_quizzes_collection.delete_one({"_id": legacy_match["_id"]})
+            return SavedQuizDocumentV2(**updated)
+
+        if legacy_match is not None:
+            filter_query = {"_id": legacy_match["_id"]}
+        elif target_match is not None:
+            filter_query = {"_id": target_match["_id"]}
+        else:
+            filter_query = (
+                {"legacy_saved_quiz_id": saved_quiz.legacy_saved_quiz_id}
+                if saved_quiz.legacy_saved_quiz_id
+                else {"user_id": saved_quiz.user_id, "quiz_id": saved_quiz.quiz_id}
+            )
         updated = await self.saved_quizzes_collection.find_one_and_update(
-            {"user_id": saved_quiz.user_id, "quiz_id": saved_quiz.quiz_id},
+            filter_query,
             {"$set": payload, "$setOnInsert": {"saved_at": saved_at}},
             upsert=True,
             return_document=ReturnDocument.AFTER,
