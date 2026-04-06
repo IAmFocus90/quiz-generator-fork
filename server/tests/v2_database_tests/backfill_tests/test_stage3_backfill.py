@@ -308,6 +308,78 @@ async def test_stage3_folder_backfill_with_structure_only_payload_does_not_crash
 
 
 @pytest.mark.asyncio
+async def test_stage3_folder_backfill_merges_duplicate_items_for_same_canonical_quiz(
+    backfill_db,
+    backfill_context_factory,
+):
+    ai_id = ObjectId()
+    folder_id = ObjectId()
+
+    await backfill_db["ai_generated_quizzes"].insert_one(
+        {
+            "_id": ai_id,
+            "profession": "Geography",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What is the capital of Russia?",
+                    "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                    "answer": "B) Moscow",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+    await backfill_db["folders"].insert_one(
+        {
+            "_id": folder_id,
+            "user_id": "user-russia",
+            "name": "Geopolitics",
+            "quizzes": [
+                {
+                    "_id": "folder-item-1",
+                    "quiz_id": str(ai_id),
+                    "title": "Russia",
+                    "question_type": "multichoice",
+                    "questions": [
+                        {
+                            "question": "What is the capital of Russia?",
+                            "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                            "question_type": "multichoice",
+                        }
+                    ],
+                },
+                {
+                    "_id": "folder-item-2",
+                    "quiz_id": str(ai_id),
+                    "title": "Russia duplicate",
+                    "question_type": "multichoice",
+                    "questions": [
+                        {
+                            "question": "What is the capital of Russia?",
+                            "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                            "question_type": "multichoice",
+                        }
+                    ],
+                },
+            ],
+        }
+    )
+
+    context = backfill_context_factory(collections=["quizzes", "folders"], run_id="folder-duplicate-items")
+    await backfill_quizzes(context)
+    summary = await backfill_folders(context)
+    folder_v2 = await backfill_db["folders_v2"].find_one({"legacy_folder_id": str(folder_id)})
+    folder_items = await backfill_db["folder_items_v2"].find({"folder_id": str(folder_v2["_id"])}).to_list(length=10)
+
+    assert summary.malformed == 0
+    assert summary.unresolved == 0
+    assert summary.conflicts == 0
+    assert len(folder_items) == 1
+    assert folder_items[0]["legacy_folder_item_id"] == "folder-item-1"
+
+
+@pytest.mark.asyncio
 async def test_stage3_backfill_saved_quiz_without_answers_matches_legacy_ai_source(
     backfill_db,
     backfill_context_factory,

@@ -78,9 +78,52 @@ class ReferenceV2Repository:
     async def upsert_folder_item_by_legacy_id(self, folder_item: FolderItemDocumentV2) -> FolderItemDocumentV2:
         payload = folder_item.model_dump(by_alias=True)
         payload.pop("_id", None)
+        created_at = payload.pop("created_at")
+        legacy_match = None
+        if folder_item.legacy_folder_item_id:
+            legacy_match = await self.folder_items_collection.find_one(
+                {"legacy_folder_item_id": folder_item.legacy_folder_item_id}
+            )
+        target_match = await self.folder_items_collection.find_one(
+            {"folder_id": folder_item.folder_id, "quiz_id": folder_item.quiz_id}
+        )
+
+        if legacy_match and target_match and legacy_match["_id"] != target_match["_id"]:
+            merged_created_at = min(
+                self._normalize_datetime(created_at),
+                self._normalize_datetime(legacy_match.get("created_at", created_at)),
+                self._normalize_datetime(target_match.get("created_at", created_at)),
+            )
+            target_legacy_item_id = target_match.get("legacy_folder_item_id")
+            updated = await self.folder_items_collection.find_one_and_update(
+                {"_id": target_match["_id"]},
+                {
+                    "$set": {
+                        **payload,
+                        "created_at": merged_created_at,
+                        "legacy_folder_item_id": target_legacy_item_id or folder_item.legacy_folder_item_id,
+                    }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+            await self.folder_items_collection.delete_one({"_id": legacy_match["_id"]})
+            return FolderItemDocumentV2(**updated)
+
+        if legacy_match is not None:
+            filter_query = {"_id": legacy_match["_id"]}
+        elif target_match is not None:
+            filter_query = {"_id": target_match["_id"]}
+            if target_match.get("legacy_folder_item_id"):
+                payload["legacy_folder_item_id"] = target_match["legacy_folder_item_id"]
+        else:
+            filter_query = (
+                {"legacy_folder_item_id": folder_item.legacy_folder_item_id}
+                if folder_item.legacy_folder_item_id
+                else {"folder_id": folder_item.folder_id, "quiz_id": folder_item.quiz_id}
+            )
         updated = await self.folder_items_collection.find_one_and_update(
-            {"legacy_folder_item_id": folder_item.legacy_folder_item_id},
-            {"$set": payload},
+            filter_query,
+            {"$set": payload, "$setOnInsert": {"created_at": created_at}},
             upsert=True,
             return_document=ReturnDocument.AFTER,
         )

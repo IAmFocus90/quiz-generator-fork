@@ -314,6 +314,76 @@ async def test_dual_writes_migration_folder_create_and_add_dual_write(
 
 
 @pytest.mark.asyncio
+async def test_dual_writes_migration_folder_add_merges_duplicate_items_for_same_quiz(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(saved_quiz_crud, "collection", dual_write_db["saved_quizzes"])
+    monkeypatch.setattr(saved_quiz_crud, "dual_write_service", service)
+    monkeypatch.setattr(folder_crud, "folders_collection", dual_write_db["folders"])
+    monkeypatch.setattr(folder_crud, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "dual_write")
+
+    await service.mirror_ai_generated_quiz(
+        "legacy-ai-quiz-dup-folder",
+        {
+            "_id": "legacy-ai-quiz-dup-folder",
+            "user_id": "user-folder",
+            "profession": "Russia",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What is the capital of Russia?",
+                    "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                    "answer": "B) Moscow",
+                    "question_type": "multichoice",
+                }
+            ],
+        },
+    )
+
+    legacy_saved_id = await saved_quiz_crud.save_quiz(
+        user_id="user-folder",
+        title="Russia",
+        question_type="multichoice",
+        quiz_id="legacy-ai-quiz-dup-folder",
+        questions=[
+            {
+                "question": "What is the capital of Russia?",
+                "options": ["A) Kyiv", "B) Moscow", "C) St. Petersburg", "D) Minsk"],
+                "question_type": "multichoice",
+            }
+        ],
+    )
+    saved_doc = await dual_write_db["saved_quizzes"].find_one({"_id": ObjectId(legacy_saved_id)})
+    folder = await folder_crud.create_folder({"user_id": "user-folder", "name": "Geopolitics"})
+
+    item_payload = {
+        "original_quiz_id": legacy_saved_id,
+        "quiz_id": saved_doc["quiz_id"],
+        "canonical_quiz_id": saved_doc["canonical_quiz_id"],
+        "title": saved_doc["title"],
+        "question_type": saved_doc["question_type"],
+        "questions": saved_doc["questions"],
+        "created_at": saved_doc["created_at"],
+        "quiz_data": saved_doc,
+    }
+
+    await folder_crud.add_quiz_to_folder(folder["_id"], {"_id": "legacy-folder-item-1", **item_payload})
+    await folder_crud.add_quiz_to_folder(folder["_id"], {"_id": "legacy-folder-item-2", **item_payload})
+
+    folder_v2 = await dual_write_db["folders_v2"].find_one({"legacy_folder_id": folder["_id"]})
+    folder_items = await dual_write_db["folder_items_v2"].find({"folder_id": str(folder_v2["_id"])}).to_list(length=10)
+
+    assert folder_v2 is not None
+    assert len(folder_items) == 1
+    assert folder_items[0]["legacy_folder_item_id"] == "legacy-folder-item-1"
+    assert folder_items[0]["quiz_id"] == saved_doc["canonical_quiz_id"]
+
+
+@pytest.mark.asyncio
 async def test_dual_writes_migration_saved_quiz_without_quiz_id_reuses_legacy_ai_source(
     dual_write_db,
     dual_write_service_factory,
