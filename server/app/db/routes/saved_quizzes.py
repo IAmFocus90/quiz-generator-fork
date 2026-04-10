@@ -1,16 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 
-from bson import ObjectId
-
 from ....app.db.crud.saved_quiz_crud import (
 
     save_quiz,
-
-    get_saved_quizzes,
-
-    delete_saved_quiz,
-
-    get_saved_quiz_by_id,
 
 )
 
@@ -63,6 +55,8 @@ async def create_saved_quiz(
         return {"message": "Quiz saved successfully", "quiz_id": quiz_id}
 
 
+    except HTTPException:
+        raise
     except Exception as e:
 
         raise HTTPException(status_code=500, detail=str(e))
@@ -78,10 +72,14 @@ async def list_saved_quizzes(
 
     try:
 
-        quizzes = await get_saved_quizzes(user_id=str(current_user.id))
+        quizzes = await quiz_user_library_service.list_saved_quizzes(
+            user_id=str(current_user.id)
+        )
 
         return quizzes
 
+    except HTTPException:
+        raise
     except Exception as e:
 
         raise HTTPException(status_code=500, detail=str(e))
@@ -99,7 +97,10 @@ async def remove_saved_quiz(
 
     try:
 
-        deleted = await delete_saved_quiz(user_id=str(current_user.id), quiz_id=quiz_id)
+        deleted = await quiz_user_library_service.delete_saved_quiz(
+            user_id=str(current_user.id),
+            saved_quiz_id=quiz_id,
+        )
 
         if not deleted:
 
@@ -107,6 +108,8 @@ async def remove_saved_quiz(
 
         return {"message": "Quiz deleted successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
 
         raise HTTPException(status_code=500, detail=str(e))
@@ -123,21 +126,19 @@ async def get_saved_quiz(
 ):
 
     try:
-
-        if not ObjectId.is_valid(quiz_id):
-
-            raise HTTPException(status_code=400, detail="Invalid quiz ID")
-
-
-        quiz = await get_saved_quiz_by_id(quiz_id, user_id=str(current_user.id))
-
-        if not quiz or quiz.get("user_id") != str(current_user.id):
+        quiz = await quiz_user_library_service.get_saved_quiz(
+            user_id=str(current_user.id),
+            saved_quiz_id=quiz_id,
+        )
+        if not quiz:
 
             raise HTTPException(status_code=404, detail="Quiz not found or unauthorized")
 
 
         return quiz
 
+    except HTTPException:
+        raise
     except Exception as e:
 
         raise HTTPException(status_code=500, detail=str(e))

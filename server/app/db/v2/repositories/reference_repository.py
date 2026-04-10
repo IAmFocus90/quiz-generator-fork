@@ -162,6 +162,33 @@ class ReferenceV2Repository:
         )
         return SavedQuizDocumentV2(**updated) if updated else None
 
+    async def list_saved_quizzes_for_user(
+        self,
+        user_id: str,
+        limit: int = 100,
+    ) -> list[SavedQuizDocumentV2]:
+        documents = await self.saved_quizzes_collection.find({"user_id": user_id}).sort(
+            "saved_at", -1
+        ).to_list(length=limit)
+        return [SavedQuizDocumentV2(**document) for document in documents]
+
+    async def delete_saved_quiz_for_user(
+        self,
+        user_id: str,
+        saved_quiz_id: str,
+    ) -> bool:
+        query: dict = {"user_id": user_id}
+        try:
+            query["$or"] = [
+                {"_id": ObjectId(saved_quiz_id)},
+                {"legacy_saved_quiz_id": saved_quiz_id},
+            ]
+        except InvalidId:
+            query["legacy_saved_quiz_id"] = saved_quiz_id
+
+        result = await self.saved_quizzes_collection.delete_one(query)
+        return result.deleted_count > 0
+
     async def get_quiz_history_for_user(
         self,
         user_id: str,
@@ -178,6 +205,16 @@ class ReferenceV2Repository:
 
         document = await self.quiz_history_collection.find_one(query)
         return QuizHistoryDocumentV2(**document) if document else None
+
+    async def list_quiz_history_for_user(
+        self,
+        user_id: str,
+        limit: int = 100,
+    ) -> list[QuizHistoryDocumentV2]:
+        documents = await self.quiz_history_collection.find({"user_id": user_id}).sort(
+            "created_at", -1
+        ).to_list(length=limit)
+        return [QuizHistoryDocumentV2(**document) for document in documents]
 
     async def delete_quiz_history_for_user(
         self,

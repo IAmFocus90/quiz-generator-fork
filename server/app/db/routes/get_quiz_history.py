@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from ....app.dependancies import get_current_user
-from ....app.db.crud.update_quiz_history import get_quiz_history
 from ....app.db.schemas.quiz_management_schemas import (
     DeleteResourceResponse,
     QuizHistoryDetailResponse,
@@ -23,7 +22,9 @@ async def get_user_quiz_history(current_user=Depends(get_current_user)):
 
     user_id = current_user.id
 
-    quizzes = await get_quiz_history(user_id)
+    quizzes = await quiz_user_library_service.list_quiz_history_items(
+        user_id=str(user_id)
+    )
 
     return quizzes
 

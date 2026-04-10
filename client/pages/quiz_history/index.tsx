@@ -37,6 +37,19 @@ const DisplayQuizHistoryPage = ({
 }) => {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteId) return;
+
+    setDeletingId(confirmDeleteId);
+    try {
+      await onDelete(confirmDeleteId);
+      setConfirmDeleteId(null);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-100">
@@ -86,11 +99,7 @@ const DisplayQuizHistoryPage = ({
                       View Details
                     </button>
                     <button
-                      onClick={async () => {
-                        setDeletingId(quizItem._id);
-                        await onDelete(quizItem._id);
-                        setDeletingId(null);
-                      }}
+                      onClick={() => setConfirmDeleteId(quizItem._id)}
                       disabled={deletingId === quizItem._id}
                       className="px-3 py-1 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50 disabled:opacity-50"
                     >
@@ -127,6 +136,36 @@ const DisplayQuizHistoryPage = ({
           )}
         </div>
       </main>
+
+      {confirmDeleteId && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full">
+            <h2 className="text-lg font-bold mb-3 text-[#0F2654]">
+              Confirm Delete
+            </h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete this quiz history item? This
+              action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                disabled={deletingId === confirmDeleteId}
+                className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deletingId === confirmDeleteId}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deletingId === confirmDeleteId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>
