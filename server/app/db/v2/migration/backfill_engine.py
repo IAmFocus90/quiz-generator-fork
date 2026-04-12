@@ -272,6 +272,7 @@ async def backfill_saved_quizzes(context: MigrationContext) -> CollectionMigrati
             target_document = SavedQuizDocumentV2(
                 user_id=doc["user_id"],
                 quiz_id=str(canonical_quiz.id),
+                display_title=doc.get("title") or canonical_quiz.title,
                 legacy_saved_quiz_id=record_id,
                 saved_at=_stable_legacy_timestamp(doc, "saved_at", "created_at"),
             )
@@ -460,7 +461,7 @@ async def backfill_folders(context: MigrationContext) -> CollectionMigrationSumm
                     summary.skipped += 1
                 else:
                     summary.inserted += 1
-            for item in folder.get("quizzes", []):
+            for position, item in enumerate(folder.get("quizzes", [])):
                 item_id = str(item.get("_id"))
                 try:
                     canonical_quiz = await context.resolver.resolve_folder_item(
@@ -485,6 +486,8 @@ async def backfill_folders(context: MigrationContext) -> CollectionMigrationSumm
                     folder_id=str(folder_v2.id),
                     quiz_id=str(canonical_quiz.id),
                     added_by=folder.get("user_id"),
+                    position=position,
+                    display_title=item.get("title") or None,
                     legacy_folder_item_id=item_id,
                     created_at=item.get("added_on")
                     or item.get("created_at")

@@ -125,6 +125,7 @@ async def test_dual_writes_migration_saved_quiz_dual_write(
     assert legacy_doc["quiz_id"] == "legacy-ai-quiz-1"
     assert legacy_doc["is_deleted"] is False
     assert legacy_doc["canonical_quiz_id"] == saved_reference["quiz_id"]
+    assert saved_reference["display_title"] == "Saved quiz"
 
 
 @pytest.mark.asyncio
@@ -311,6 +312,8 @@ async def test_dual_writes_migration_folder_create_and_add_dual_write(
     assert folder_item_v2 is not None
     assert folder_item_v2["quiz_id"] == str(canonical_quiz["_id"])
     assert folder_item_v2["quiz_id"] == saved_doc["canonical_quiz_id"]
+    assert folder_item_v2["display_title"] == saved_doc["title"]
+    assert folder_item_v2["position"] == 0
 
 
 @pytest.mark.asyncio
@@ -381,6 +384,7 @@ async def test_dual_writes_migration_folder_add_merges_duplicate_items_for_same_
     assert len(folder_items) == 1
     assert folder_items[0]["legacy_folder_item_id"] == "legacy-folder-item-1"
     assert folder_items[0]["quiz_id"] == saved_doc["canonical_quiz_id"]
+    assert folder_items[0]["position"] == 0
 
 
 @pytest.mark.asyncio

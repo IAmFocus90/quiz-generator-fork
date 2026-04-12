@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo import ReturnDocument
@@ -29,6 +30,13 @@ class ReferenceV2Repository:
         if value.tzinfo is not None:
             return value.astimezone(timezone.utc).replace(tzinfo=None)
         return value
+
+    @staticmethod
+    def _merge_position(*values: Optional[int]) -> Optional[int]:
+        valid_values = [value for value in values if value is not None]
+        if not valid_values:
+            return None
+        return min(valid_values)
 
     async def insert_folder(self, folder: FolderDocumentV2) -> FolderDocumentV2:
         payload = folder.model_dump(by_alias=True)
@@ -69,6 +77,10 @@ class ReferenceV2Repository:
         document = await self.folders_collection.find_one({"legacy_folder_id": legacy_folder_id})
         return FolderDocumentV2(**document) if document else None
 
+    async def list_folders_for_user(self, user_id: str) -> list[FolderDocumentV2]:
+        documents = await self.folders_collection.find({"user_id": user_id}).to_list(length=500)
+        return [FolderDocumentV2(**document) for document in documents]
+
     async def delete_folder_by_legacy_id(self, legacy_folder_id: str):
         folder = await self.get_folder_by_legacy_id(legacy_folder_id)
         if folder:
@@ -94,13 +106,25 @@ class ReferenceV2Repository:
                 self._normalize_datetime(legacy_match.get("created_at", created_at)),
                 self._normalize_datetime(target_match.get("created_at", created_at)),
             )
+            merged_position = self._merge_position(
+                payload.get("position"),
+                legacy_match.get("position"),
+                target_match.get("position"),
+            )
             target_legacy_item_id = target_match.get("legacy_folder_item_id")
+            merged_display_title = (
+                payload.get("display_title")
+                or target_match.get("display_title")
+                or legacy_match.get("display_title")
+            )
             updated = await self.folder_items_collection.find_one_and_update(
                 {"_id": target_match["_id"]},
                 {
                     "$set": {
                         **payload,
                         "created_at": merged_created_at,
+                        "position": merged_position,
+                        "display_title": merged_display_title,
                         "legacy_folder_item_id": target_legacy_item_id or folder_item.legacy_folder_item_id,
                     }
                 },
@@ -115,6 +139,8 @@ class ReferenceV2Repository:
             filter_query = {"_id": target_match["_id"]}
             if target_match.get("legacy_folder_item_id"):
                 payload["legacy_folder_item_id"] = target_match["legacy_folder_item_id"]
+            payload["position"] = self._merge_position(payload.get("position"), target_match.get("position"))
+            payload["display_title"] = payload.get("display_title") or target_match.get("display_title")
         else:
             filter_query = (
                 {"legacy_folder_item_id": folder_item.legacy_folder_item_id}
@@ -134,6 +160,10 @@ class ReferenceV2Repository:
             {"legacy_folder_item_id": legacy_folder_item_id}
         )
         return FolderItemDocumentV2(**document) if document else None
+
+    async def list_folder_items_for_folder(self, folder_id: str) -> list[FolderItemDocumentV2]:
+        documents = await self.folder_items_collection.find({"folder_id": folder_id}).to_list(length=1000)
+        return [FolderItemDocumentV2(**document) for document in documents]
 
     async def delete_folder_item_by_legacy_id(self, legacy_folder_item_id: str):
         await self.folder_items_collection.delete_one({"legacy_folder_item_id": legacy_folder_item_id})
@@ -157,11 +187,17 @@ class ReferenceV2Repository:
                 self._normalize_datetime(legacy_match.get("saved_at", saved_at)),
                 self._normalize_datetime(target_match.get("saved_at", saved_at)),
             )
+            merged_display_title = (
+                payload.get("display_title")
+                or target_match.get("display_title")
+                or legacy_match.get("display_title")
+            )
             updated = await self.saved_quizzes_collection.find_one_and_update(
                 {"_id": target_match["_id"]},
                 {
                     "$set": {
                         **payload,
+                        "display_title": merged_display_title,
                         "saved_at": merged_saved_at,
                     }
                 },
@@ -174,6 +210,7 @@ class ReferenceV2Repository:
             filter_query = {"_id": legacy_match["_id"]}
         elif target_match is not None:
             filter_query = {"_id": target_match["_id"]}
+            payload["display_title"] = payload.get("display_title") or target_match.get("display_title")
         else:
             filter_query = (
                 {"legacy_saved_quiz_id": saved_quiz.legacy_saved_quiz_id}
@@ -188,6 +225,24 @@ class ReferenceV2Repository:
         )
         return SavedQuizDocumentV2(**updated)
 
+    async def list_saved_quizzes_for_user(self, user_id: str) -> list[SavedQuizDocumentV2]:
+        documents = await self.saved_quizzes_collection.find({"user_id": user_id}).to_list(length=500)
+        return [SavedQuizDocumentV2(**document) for document in documents]
+
+    async def get_saved_quiz_by_legacy_id(
+        self,
+        legacy_saved_quiz_id: str,
+        user_id: Optional[str] = None,
+    ) -> SavedQuizDocumentV2 | None:
+        query: dict[str, str] = {"legacy_saved_quiz_id": legacy_saved_quiz_id}
+        if user_id is not None:
+            query["user_id"] = user_id
+        document = await self.saved_quizzes_collection.find_one(query)
+        return SavedQuizDocumentV2(**document) if document else None
+
+    async def delete_saved_quiz(self, user_id: str, quiz_id: str):
+        await self.saved_quizzes_collection.delete_one({"user_id": user_id, "quiz_id": quiz_id})
+
     async def upsert_quiz_history(self, quiz_history: QuizHistoryDocumentV2) -> QuizHistoryDocumentV2:
         payload = quiz_history.model_dump(by_alias=True)
         payload.pop("_id", None)
@@ -199,3 +254,7 @@ class ReferenceV2Repository:
             return_document=ReturnDocument.AFTER,
         )
         return QuizHistoryDocumentV2(**updated)
+
+    async def list_quiz_history_for_user(self, user_id: str) -> list[QuizHistoryDocumentV2]:
+        documents = await self.quiz_history_collection.find({"user_id": user_id}).to_list(length=500)
+        return [QuizHistoryDocumentV2(**document) for document in documents]
