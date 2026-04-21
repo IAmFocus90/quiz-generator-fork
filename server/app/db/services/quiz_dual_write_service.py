@@ -69,6 +69,10 @@ class QuizDualWriteService:
     def dual_write_enabled(self) -> bool:
         return self.write_mode == "dual_write"
 
+    @property
+    def v2_only_enabled(self) -> bool:
+        return self.write_mode == "v2_only"
+
     def _log(self, event: str, **fields):
         if not settings.QUIZ_V2_STRUCTURED_LOGGING:
             return
@@ -172,6 +176,14 @@ class QuizDualWriteService:
     async def _resolve_canonical_from_source_quiz_id(self, source_quiz_id: str | None):
         return await self.legacy_resolution_service.resolve_from_source_quiz_id(source_quiz_id)
 
+    async def _resolve_canonical_from_any_quiz_id(self, quiz_id: str | None):
+        if not quiz_id:
+            return None
+        canonical_quiz = await self.canonical_service.get_quiz_v2_by_id(quiz_id)
+        if canonical_quiz:
+            return canonical_quiz
+        return await self._resolve_canonical_from_source_quiz_id(quiz_id)
+
 
     async def mirror_legacy_manual_quiz(self, legacy_quiz_id: str, legacy_quiz_doc: dict):
         return await self._run_fail_open(
@@ -221,7 +233,7 @@ class QuizDualWriteService:
                     legacy_saved_doc["canonical_quiz_id"]
                 )
             if not canonical_quiz:
-                canonical_quiz = await self._resolve_canonical_from_source_quiz_id(
+                canonical_quiz = await self._resolve_canonical_from_any_quiz_id(
                     legacy_saved_doc.get("quiz_id")
                 )
             if not canonical_quiz:
@@ -254,6 +266,65 @@ class QuizDualWriteService:
             return canonical_quiz
         return None
 
+    async def create_saved_quiz_v2(
+        self,
+        *,
+        user_id: str,
+        title: str,
+        question_type: str,
+        questions: list[Any],
+        quiz_id: str | None = None,
+        saved_at: datetime | None = None,
+    ) -> SavedQuizDocumentV2:
+        canonical_quiz = await self._resolve_canonical_from_any_quiz_id(quiz_id)
+        if not canonical_quiz:
+            canonical_quiz = await self._mirror_quiz_document(
+                title=title,
+                quiz_type=question_type,
+                owner_user_id=None,
+                source="legacy",
+                questions=questions,
+            )
+        reference = await self.reference_repository.upsert_saved_quiz(
+            SavedQuizDocumentV2(
+                user_id=user_id,
+                quiz_id=str(canonical_quiz.id),
+                display_title=title or canonical_quiz.title,
+                saved_at=saved_at or datetime.utcnow(),
+            )
+        )
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="saved_quiz_create",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            saved_quiz_id=str(reference.id),
+            canonical_quiz_id=str(canonical_quiz.id),
+        )
+        return reference
+
+    async def delete_saved_quiz_v2(self, *, saved_quiz_id: str, user_id: str) -> bool:
+        saved_reference = await self.reference_repository.get_saved_quiz_by_public_id(
+            saved_quiz_id,
+            user_id=user_id,
+        )
+        if saved_reference is None:
+            return False
+        deleted_count = await self.reference_repository.delete_saved_quiz_by_id(
+            str(saved_reference.id),
+            user_id=user_id,
+        )
+        deleted = deleted_count > 0
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="saved_quiz_delete",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            saved_quiz_id=saved_quiz_id,
+            deleted=deleted,
+        )
+        return deleted
+
     async def mirror_quiz_history(self, legacy_history_doc: dict):
         async def action():
             canonical_quiz = None
@@ -262,7 +333,7 @@ class QuizDualWriteService:
                     legacy_history_doc["canonical_quiz_id"]
                 )
             if not canonical_quiz:
-                canonical_quiz = await self._resolve_canonical_from_source_quiz_id(
+                canonical_quiz = await self._resolve_canonical_from_any_quiz_id(
                     legacy_history_doc.get("quiz_id")
                 )
             if not canonical_quiz:
@@ -307,6 +378,52 @@ class QuizDualWriteService:
             return canonical_quiz
         return None
 
+    async def create_quiz_history_v2(self, quiz_data: dict[str, Any]) -> QuizHistoryDocumentV2:
+        canonical_quiz = None
+        if quiz_data.get("canonical_quiz_id"):
+            canonical_quiz = await self.canonical_service.get_quiz_v2_by_id(
+                quiz_data["canonical_quiz_id"]
+            )
+        if not canonical_quiz:
+            canonical_quiz = await self._resolve_canonical_from_any_quiz_id(quiz_data.get("quiz_id"))
+        if not canonical_quiz:
+            canonical_quiz = await self._mirror_quiz_document(
+                title=self.legacy_resolution_service.choose_preferred_title(
+                    title=quiz_data.get("quiz_name"),
+                    fallback_title=quiz_data.get("profession"),
+                    quiz_type=quiz_data.get("question_type"),
+                    default="Quiz History",
+                ),
+                description=quiz_data.get("custom_instruction"),
+                quiz_type=quiz_data["question_type"],
+                owner_user_id=None,
+                source="legacy",
+                questions=quiz_data["questions"],
+            )
+        reference = await self.reference_repository.insert_quiz_history(
+            QuizHistoryDocumentV2(
+                user_id=quiz_data["user_id"],
+                quiz_id=str(canonical_quiz.id),
+                action="generated",
+                metadata={
+                    "source": canonical_quiz.source,
+                    "topic": quiz_data.get("profession") or canonical_quiz.title,
+                    "difficulty_level": quiz_data.get("difficulty_level"),
+                    "audience_type": quiz_data.get("audience_type"),
+                },
+                created_at=quiz_data.get("created_at", datetime.utcnow()),
+            )
+        )
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="quiz_history_create",
+            write_mode=self.write_mode,
+            user_id=quiz_data["user_id"],
+            history_id=str(reference.id),
+            canonical_quiz_id=str(canonical_quiz.id),
+        )
+        return reference
+
     async def mirror_folder_create(self, legacy_folder_doc: dict):
         return await self._run_fail_open(
             operation="folder_create_or_update",
@@ -324,6 +441,58 @@ class QuizDualWriteService:
             ),
         )
 
+    async def create_folder_v2(
+        self,
+        *,
+        user_id: str,
+        name: str,
+        description: str | None = None,
+        created_at: datetime | None = None,
+        updated_at: datetime | None = None,
+    ) -> FolderDocumentV2:
+        folder = await self.reference_repository.insert_folder(
+            FolderDocumentV2(
+                user_id=user_id,
+                name=name,
+                description=description,
+                created_at=created_at or datetime.utcnow(),
+                updated_at=updated_at or datetime.utcnow(),
+            )
+        )
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="folder_create",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            folder_id=str(folder.id),
+        )
+        return folder
+
+    async def rename_folder_v2(
+        self,
+        *,
+        folder_id: str,
+        user_id: str,
+        new_name: str,
+    ) -> FolderDocumentV2 | None:
+        folder = await self.reference_repository.get_folder_by_public_id(folder_id)
+        if folder is None or folder.user_id != user_id:
+            return None
+        updated = await self.reference_repository.update_folder(
+            str(folder.id),
+            name=new_name,
+            updated_at=datetime.utcnow(),
+        )
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="folder_rename",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            folder_id=folder_id,
+            updated=updated is not None,
+        )
+        return updated
+
     async def mirror_folder_delete(self, legacy_folder_id: str):
         return await self._run_fail_open(
             operation="folder_delete",
@@ -333,6 +502,21 @@ class QuizDualWriteService:
                 legacy_folder_id
             ),
         )
+
+    async def delete_folder_v2(self, *, folder_id: str, user_id: str) -> bool:
+        folder = await self.reference_repository.get_folder_by_public_id(folder_id)
+        if folder is None or folder.user_id != user_id:
+            return False
+        await self.reference_repository.delete_folder_by_id(str(folder.id))
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="folder_delete",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            folder_id=folder_id,
+            deleted=True,
+        )
+        return True
 
     async def mirror_folder_item_add(self, legacy_folder_doc: dict, legacy_folder_item: dict):
         async def action():
@@ -357,6 +541,10 @@ class QuizDualWriteService:
                     legacy_folder_item.get("quiz_id")
                     or quiz_payload.get("quiz_id")
                 )
+                if not canonical_quiz:
+                    canonical_quiz = await self._resolve_canonical_from_any_quiz_id(
+                        legacy_folder_item.get("canonical_quiz_id")
+                    )
                 if not canonical_quiz:
                     canonical_quiz = await self._mirror_quiz_document(
                         title=legacy_folder_item.get("title") or quiz_payload.get("title") or "Untitled Quiz",
@@ -394,6 +582,50 @@ class QuizDualWriteService:
             coroutine_factory=action,
         )
 
+    async def add_saved_quiz_to_folder_v2(
+        self,
+        *,
+        folder_id: str,
+        saved_quiz_id: str,
+        user_id: str,
+    ) -> tuple[FolderDocumentV2, FolderItemDocumentV2]:
+        folder = await self.reference_repository.get_folder_by_public_id(folder_id)
+        if folder is None or folder.user_id != user_id:
+            raise PermissionError("Unauthorized access to folder")
+
+        saved_reference = await self.reference_repository.get_saved_quiz_by_public_id(
+            saved_quiz_id,
+            user_id=user_id,
+        )
+        if saved_reference is None:
+            raise ValueError("Saved quiz not found")
+
+        canonical_quiz = await self.canonical_service.get_quiz_v2_by_id(saved_reference.quiz_id)
+        if canonical_quiz is None:
+            raise ValueError("Canonical quiz not found")
+
+        existing_items = await self.reference_repository.list_folder_items_for_folder(str(folder.id))
+        folder_item = await self.reference_repository.upsert_folder_item_by_legacy_id(
+            FolderItemDocumentV2(
+                folder_id=str(folder.id),
+                quiz_id=str(canonical_quiz.id),
+                added_by=user_id,
+                position=len(existing_items),
+                display_title=saved_reference.display_title or canonical_quiz.title,
+                created_at=datetime.utcnow(),
+            )
+        )
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="folder_item_add",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            folder_id=folder_id,
+            folder_item_id=str(folder_item.id),
+            canonical_quiz_id=str(canonical_quiz.id),
+        )
+        return folder, folder_item
+
     async def mirror_folder_item_remove(self, legacy_folder_item_id: str):
         return await self._run_fail_open(
             operation="folder_item_remove",
@@ -403,6 +635,31 @@ class QuizDualWriteService:
                 legacy_folder_item_id
             ),
         )
+
+    async def remove_folder_item_v2(
+        self,
+        *,
+        folder_id: str,
+        folder_item_id: str,
+        user_id: str,
+    ) -> bool:
+        folder = await self.reference_repository.get_folder_by_public_id(folder_id)
+        if folder is None or folder.user_id != user_id:
+            return False
+        folder_item = await self.reference_repository.get_folder_item_by_public_id(folder_item_id)
+        if folder_item is None or folder_item.folder_id != str(folder.id):
+            return False
+        await self.reference_repository.delete_folder_item_by_id(str(folder_item.id))
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="folder_item_remove",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            folder_id=folder_id,
+            folder_item_id=folder_item_id,
+            deleted=True,
+        )
+        return True
 
     async def mirror_folder_item_move(
         self,
@@ -452,6 +709,46 @@ class QuizDualWriteService:
             legacy_id=legacy_folder_item_id,
             coroutine_factory=action,
         )
+
+    async def move_folder_item_v2(
+        self,
+        *,
+        folder_item_id: str,
+        source_folder_id: str,
+        target_folder_id: str,
+        user_id: str,
+    ) -> bool:
+        source_folder = await self.reference_repository.get_folder_by_public_id(source_folder_id)
+        target_folder = await self.reference_repository.get_folder_by_public_id(target_folder_id)
+        if (
+            source_folder is None
+            or target_folder is None
+            or source_folder.user_id != user_id
+            or target_folder.user_id != user_id
+        ):
+            return False
+
+        folder_item = await self.reference_repository.get_folder_item_by_public_id(folder_item_id)
+        if folder_item is None or folder_item.folder_id != str(source_folder.id):
+            return False
+
+        target_items = await self.reference_repository.list_folder_items_for_folder(str(target_folder.id))
+        updated = await self.reference_repository.update_folder_item(
+            str(folder_item.id),
+            folder_id=str(target_folder.id),
+            position=len(target_items),
+        )
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="folder_item_move",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            folder_item_id=folder_item_id,
+            source_folder_id=source_folder_id,
+            target_folder_id=target_folder_id,
+            updated=updated is not None,
+        )
+        return updated is not None
 
     async def _run_fail_open(
         self,

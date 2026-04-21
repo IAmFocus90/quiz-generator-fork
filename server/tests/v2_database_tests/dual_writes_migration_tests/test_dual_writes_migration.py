@@ -3,7 +3,7 @@ from bson import ObjectId
 from datetime import datetime
 
 from ....app.db.core.config import settings
-from ....app.db.crud import folder_crud, quiz_crud, saved_quiz_crud, update_quiz_history
+from ....app.db.crud import ai_generated_quiz_crud, folder_crud, quiz_crud, saved_quiz_crud, update_quiz_history
 from ....app.db.v2.models.quiz_models import QuizCreateV2
 from ....app.db.schemas.quiz_schemas import NewQuizSchema
 
@@ -550,3 +550,207 @@ async def test_dual_writes_migration_history_prefers_profession_over_generic_qui
 
     assert history_reference is not None
     assert canonical["title"] == "Russia"
+
+
+@pytest.mark.asyncio
+async def test_stage5_saved_quiz_v2_only_writes_only_v2_records(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(saved_quiz_crud, "collection", dual_write_db["saved_quizzes"])
+    monkeypatch.setattr(saved_quiz_crud, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "v2_only")
+
+    await dual_write_db["ai_generated_quizzes"].insert_one(
+        {
+            "_id": ObjectId("690000000000000000000001"),
+            "user_id": "user-v2-only",
+            "profession": "Caching",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What does Redis store in memory?",
+                    "options": ["Data", "Templates"],
+                    "answer": "Data",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    saved_id = await saved_quiz_crud.save_quiz(
+        user_id="user-v2-only",
+        title="Caching Quiz",
+        question_type="multichoice",
+        questions=[
+            {
+                "question": "What does Redis store in memory?",
+                "options": ["Data", "Templates"],
+                "question_type": "multichoice",
+            }
+        ],
+    )
+
+    assert await dual_write_db["saved_quizzes"].count_documents({}) == 0
+
+    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"_id": ObjectId(saved_id)})
+    assert saved_reference is not None
+    assert saved_reference["user_id"] == "user-v2-only"
+    assert saved_reference["display_title"] == "Caching Quiz"
+
+
+@pytest.mark.asyncio
+async def test_stage5_quiz_history_v2_only_writes_only_v2_records(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(update_quiz_history, "quiz_history_collection", dual_write_db["quiz_history"])
+    monkeypatch.setattr(update_quiz_history, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "v2_only")
+
+    history_id = await update_quiz_history.update_quiz_history(
+        {
+            "user_id": "user-history-v2",
+            "quiz_name": "Queueing",
+            "question_type": "open-ended",
+            "profession": "Queueing",
+            "questions": [
+                {
+                    "question": "Define a message queue.",
+                    "answer": "A buffer for asynchronous processing.",
+                    "question_type": "open-ended",
+                }
+            ],
+        }
+    )
+
+    assert await dual_write_db["quiz_history"].count_documents({}) == 0
+
+    history_reference = await dual_write_db["quiz_history_v2"].find_one({"_id": ObjectId(history_id)})
+    assert history_reference is not None
+    assert history_reference["user_id"] == "user-history-v2"
+
+    canonical = await dual_write_db["quizzes_v2"].find_one({"_id": ObjectId(history_reference["quiz_id"])})
+    assert canonical is not None
+    assert canonical["title"] == "Queueing"
+
+
+@pytest.mark.asyncio
+async def test_stage5_folder_v2_only_mutations_operate_without_legacy_rows(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(saved_quiz_crud, "collection", dual_write_db["saved_quizzes"])
+    monkeypatch.setattr(saved_quiz_crud, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "v2_only")
+
+    await dual_write_db["ai_generated_quizzes"].insert_one(
+        {
+            "_id": ObjectId("690000000000000000000002"),
+            "user_id": "user-folder-v2",
+            "profession": "Graphs",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What does BFS stand for?",
+                    "options": ["Breadth-first search", "Binary file system"],
+                    "answer": "Breadth-first search",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    saved_id = await saved_quiz_crud.save_quiz(
+        user_id="user-folder-v2",
+        title="Graphs",
+        question_type="multichoice",
+        quiz_id="690000000000000000000002",
+        questions=[
+            {
+                "question": "What does BFS stand for?",
+                "options": ["Breadth-first search", "Binary file system"],
+                "question_type": "multichoice",
+            }
+        ],
+    )
+
+    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"_id": ObjectId(saved_id)})
+    assert saved_reference is not None
+
+    source_folder = await service.create_folder_v2(user_id="user-folder-v2", name="Algorithms")
+    target_folder = await service.create_folder_v2(user_id="user-folder-v2", name="Interview Prep")
+
+    _folder, folder_item = await service.add_saved_quiz_to_folder_v2(
+        folder_id=str(source_folder.id),
+        saved_quiz_id=saved_id,
+        user_id="user-folder-v2",
+    )
+
+    assert await dual_write_db["folders"].count_documents({}) == 0
+    assert await dual_write_db["folder_items_v2"].count_documents({}) == 1
+    stored_item = await dual_write_db["folder_items_v2"].find_one({"_id": folder_item.id})
+    assert stored_item["folder_id"] == str(source_folder.id)
+    assert stored_item["display_title"] == "Graphs"
+
+    moved = await service.move_folder_item_v2(
+        folder_item_id=str(folder_item.id),
+        source_folder_id=str(source_folder.id),
+        target_folder_id=str(target_folder.id),
+        user_id="user-folder-v2",
+    )
+    assert moved is True
+
+    moved_item = await dual_write_db["folder_items_v2"].find_one({"_id": folder_item.id})
+    assert moved_item["folder_id"] == str(target_folder.id)
+
+    removed = await service.remove_folder_item_v2(
+        folder_id=str(target_folder.id),
+        folder_item_id=str(folder_item.id),
+        user_id="user-folder-v2",
+    )
+    assert removed is True
+    assert await dual_write_db["folder_items_v2"].count_documents({}) == 0
+    assert await dual_write_db["folders"].count_documents({}) == 0
+
+
+@pytest.mark.asyncio
+async def test_stage5_ai_generated_quiz_v2_only_returns_canonical_id_and_skips_legacy_insert(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(ai_generated_quiz_crud, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "v2_only")
+
+    result = await ai_generated_quiz_crud.save_ai_generated_quiz(
+        {
+            "user_id": "user-ai-v2",
+            "profession": "Distributed Systems",
+            "question_type": "multichoice",
+            "difficulty_level": "easy",
+            "num_questions": 1,
+            "audience_type": "students",
+            "custom_instruction": "",
+            "questions": [
+                {
+                    "question": "What does CAP stand for?",
+                    "options": ["Consistency, Availability, Partition tolerance", "Caching, Access, Persistence"],
+                    "answer": "Consistency, Availability, Partition tolerance",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    assert await dual_write_db["ai_generated_quizzes"].count_documents({}) == 0
+    canonical = await dual_write_db["quizzes_v2"].find_one({"_id": ObjectId(result["quiz_id"])})
+    assert canonical is not None
+    assert canonical["title"] == "Distributed Systems"

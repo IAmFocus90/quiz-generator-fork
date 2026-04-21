@@ -6,15 +6,22 @@ import OrganizeModal from "./OrganizeModal";
 
 interface FolderViewProps {
   folder: {
-    _id: string;
+    id?: string;
+    _id?: string;
     name: string;
     quizzes: {
-      _id: string;
+      id?: string;
+      _id?: string;
       title: string;
       category: string;
     }[];
   };
 }
+
+const getFolderId = (folder: { id?: string; _id?: string }) =>
+  folder.id || folder._id || "";
+const getFolderItemId = (quiz: { id?: string; _id?: string }) =>
+  quiz.id || quiz._id || "";
 
 const FolderView: React.FC<FolderViewProps> = ({ folder }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<any | null>(null);
@@ -40,7 +47,7 @@ const FolderView: React.FC<FolderViewProps> = ({ folder }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {quizzes.map((quiz) => (
             <div
-              key={quiz._id}
+              key={getFolderItemId(quiz)}
               className="p-4 border border-gray-200 rounded-xl hover:shadow-md transition"
             >
               <h3 className="text-lg font-medium text-navy-700 mb-1">
@@ -70,7 +77,7 @@ const FolderView: React.FC<FolderViewProps> = ({ folder }) => {
           isOpen={showMoveModal}
           onClose={() => setShowMoveModal(false)}
           quiz={selectedQuiz}
-          sourceFolderId={folder._id}
+          sourceFolderId={getFolderId(folder)}
         />
       )}
 

@@ -3,6 +3,8 @@ from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from bson.errors import InvalidId
 from .....app.db.core.connection import get_ai_generated_quizzes_collection
+from .....app.db.core.connection import get_quizzes_collection
+from .....app.db.core.connection import get_quizzes_v2_collection
 from ..generate_csv import generate_csv
 from ..generate_docx import generate_docx
 from ..generate_pdf import generate_pdf
@@ -15,6 +17,19 @@ from ...db import (
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_questions_for_download(questions: list[dict]) -> list[dict]:
+    normalized_questions = []
+    for question in questions:
+        normalized_questions.append(
+            {
+                "question": question.get("question"),
+                "options": question.get("options"),
+                "answer": question.get("answer") or question.get("correct_answer"),
+            }
+        )
+    return normalized_questions
 
 
 def download_mock_quiz(format: str, question_type: str, num_question: int) -> StreamingResponse:
@@ -61,8 +76,9 @@ async def download_quiz_by_id(
     Download an existing quiz by its MongoDB ObjectId.
     Extracts only the 'questions' list to match existing generators.
     """
-
-    collection = get_ai_generated_quizzes_collection()
+    v2_collection = get_quizzes_v2_collection()
+    legacy_ai_collection = get_ai_generated_quizzes_collection()
+    legacy_manual_collection = get_quizzes_collection()
     logger.info(f"pulling quiz {quiz_id} from database")
 
     try:
@@ -71,13 +87,25 @@ async def download_quiz_by_id(
         logger.warning(f"Invalid quiz_id format: {quiz_id}")
         raise HTTPException(status_code=400, detail="Invalid quiz_id (must be a valid ObjectId)")
 
-    quiz_doc = await collection.find_one({"_id": object_id})
+    quiz_doc = await v2_collection.find_one({"_id": object_id})
+    if quiz_doc:
+        quiz_data = _normalize_questions_for_download(quiz_doc.get("questions", []))
+    else:
+        quiz_doc = await legacy_ai_collection.find_one({"_id": object_id})
+        if quiz_doc:
+            quiz_data = _normalize_questions_for_download(quiz_doc.get("questions", []))
+        else:
+            quiz_doc = await legacy_manual_collection.find_one({"_id": object_id})
+            if quiz_doc:
+                quiz_data = _normalize_questions_for_download(quiz_doc.get("questions", []))
+            else:
+                quiz_data = []
+
     if not quiz_doc:
         logger.warning(f"unable to pull quiz {quiz_id} from db")
         raise HTTPException(status_code=404, detail=f"Quiz not found for id {quiz_id}")
 
     # STEP 3 — Extract compatible quiz structure
-    quiz_data = quiz_doc.get("questions", [])
     if not quiz_data:
         logger.warning(f"Quiz with id {quiz_id} contains no questions")
         raise HTTPException(
@@ -114,4 +142,3 @@ async def download_quiz_by_id(
             "Content-Disposition": f"attachment; filename=quiz_{quiz_id}.{file_format}"
         }
     )
-

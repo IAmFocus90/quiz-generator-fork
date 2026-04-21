@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from bson import ObjectId
+from bson.errors import InvalidId
 from motor.motor_asyncio import AsyncIOMotorCollection
 from pymongo import ReturnDocument
 
@@ -77,15 +79,65 @@ class ReferenceV2Repository:
         document = await self.folders_collection.find_one({"legacy_folder_id": legacy_folder_id})
         return FolderDocumentV2(**document) if document else None
 
+    async def get_folder_by_id(self, folder_id: str) -> FolderDocumentV2 | None:
+        try:
+            document = await self.folders_collection.find_one({"_id": ObjectId(folder_id)})
+        except InvalidId:
+            return None
+        return FolderDocumentV2(**document) if document else None
+
+    async def get_folder_by_public_id(self, folder_id: str) -> FolderDocumentV2 | None:
+        return await self.get_folder_by_legacy_id(folder_id) or await self.get_folder_by_id(folder_id)
+
     async def list_folders_for_user(self, user_id: str) -> list[FolderDocumentV2]:
         documents = await self.folders_collection.find({"user_id": user_id}).to_list(length=500)
         return [FolderDocumentV2(**document) for document in documents]
+
+    async def update_folder(
+        self,
+        folder_id: str,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        updated_at: Optional[datetime] = None,
+    ) -> FolderDocumentV2 | None:
+        updates = {
+            key: value
+            for key, value in {
+                "name": name,
+                "description": description,
+                "updated_at": updated_at or datetime.utcnow(),
+            }.items()
+            if value is not None
+        }
+        try:
+            updated = await self.folders_collection.find_one_and_update(
+                {"_id": ObjectId(folder_id)},
+                {"$set": updates},
+                return_document=ReturnDocument.AFTER,
+            )
+        except InvalidId:
+            return None
+        return FolderDocumentV2(**updated) if updated else None
 
     async def delete_folder_by_legacy_id(self, legacy_folder_id: str):
         folder = await self.get_folder_by_legacy_id(legacy_folder_id)
         if folder:
             await self.folder_items_collection.delete_many({"folder_id": str(folder.id)})
         await self.folders_collection.delete_one({"legacy_folder_id": legacy_folder_id})
+
+    async def delete_folder_by_id(self, folder_id: str):
+        try:
+            object_id = ObjectId(folder_id)
+        except InvalidId:
+            return
+        await self.folder_items_collection.delete_many({"folder_id": folder_id})
+        await self.folders_collection.delete_one({"_id": object_id})
+
+    async def delete_folder_by_public_id(self, folder_id: str):
+        folder = await self.get_folder_by_public_id(folder_id)
+        if folder:
+            await self.delete_folder_by_id(str(folder.id))
 
     async def upsert_folder_item_by_legacy_id(self, folder_item: FolderItemDocumentV2) -> FolderItemDocumentV2:
         payload = folder_item.model_dump(by_alias=True)
@@ -161,12 +213,67 @@ class ReferenceV2Repository:
         )
         return FolderItemDocumentV2(**document) if document else None
 
+    async def get_folder_item_by_id(self, folder_item_id: str) -> FolderItemDocumentV2 | None:
+        try:
+            document = await self.folder_items_collection.find_one({"_id": ObjectId(folder_item_id)})
+        except InvalidId:
+            return None
+        return FolderItemDocumentV2(**document) if document else None
+
+    async def get_folder_item_by_public_id(self, folder_item_id: str) -> FolderItemDocumentV2 | None:
+        return await self.get_folder_item_by_legacy_id(folder_item_id) or await self.get_folder_item_by_id(
+            folder_item_id
+        )
+
     async def list_folder_items_for_folder(self, folder_id: str) -> list[FolderItemDocumentV2]:
         documents = await self.folder_items_collection.find({"folder_id": folder_id}).to_list(length=1000)
         return [FolderItemDocumentV2(**document) for document in documents]
 
     async def delete_folder_item_by_legacy_id(self, legacy_folder_item_id: str):
         await self.folder_items_collection.delete_one({"legacy_folder_item_id": legacy_folder_item_id})
+
+    async def update_folder_item(
+        self,
+        folder_item_id: str,
+        *,
+        folder_id: Optional[str] = None,
+        quiz_id: Optional[str] = None,
+        added_by: Optional[str] = None,
+        position: Optional[int] = None,
+        display_title: Optional[str] = None,
+    ) -> FolderItemDocumentV2 | None:
+        updates = {
+            key: value
+            for key, value in {
+                "folder_id": folder_id,
+                "quiz_id": quiz_id,
+                "added_by": added_by,
+                "position": position,
+                "display_title": display_title,
+            }.items()
+            if value is not None
+        }
+        try:
+            updated = await self.folder_items_collection.find_one_and_update(
+                {"_id": ObjectId(folder_item_id)},
+                {"$set": updates},
+                return_document=ReturnDocument.AFTER,
+            )
+        except InvalidId:
+            return None
+        return FolderItemDocumentV2(**updated) if updated else None
+
+    async def delete_folder_item_by_id(self, folder_item_id: str):
+        try:
+            object_id = ObjectId(folder_item_id)
+        except InvalidId:
+            return
+        await self.folder_items_collection.delete_one({"_id": object_id})
+
+    async def delete_folder_item_by_public_id(self, folder_item_id: str):
+        item = await self.get_folder_item_by_public_id(folder_item_id)
+        if item:
+            await self.delete_folder_item_by_id(str(item.id))
 
     async def upsert_saved_quiz(self, saved_quiz: SavedQuizDocumentV2) -> SavedQuizDocumentV2:
         payload = saved_quiz.model_dump(by_alias=True)
@@ -240,8 +347,49 @@ class ReferenceV2Repository:
         document = await self.saved_quizzes_collection.find_one(query)
         return SavedQuizDocumentV2(**document) if document else None
 
+    async def get_saved_quiz_by_id(
+        self,
+        saved_quiz_id: str,
+        user_id: Optional[str] = None,
+    ) -> SavedQuizDocumentV2 | None:
+        query: dict[str, object] = {}
+        try:
+            query["_id"] = ObjectId(saved_quiz_id)
+        except InvalidId:
+            return None
+        if user_id is not None:
+            query["user_id"] = user_id
+        document = await self.saved_quizzes_collection.find_one(query)
+        return SavedQuizDocumentV2(**document) if document else None
+
+    async def get_saved_quiz_by_public_id(
+        self,
+        saved_quiz_id: str,
+        user_id: Optional[str] = None,
+    ) -> SavedQuizDocumentV2 | None:
+        return await self.get_saved_quiz_by_legacy_id(saved_quiz_id, user_id=user_id) or await self.get_saved_quiz_by_id(
+            saved_quiz_id,
+            user_id=user_id,
+        )
+
     async def delete_saved_quiz(self, user_id: str, quiz_id: str):
         await self.saved_quizzes_collection.delete_one({"user_id": user_id, "quiz_id": quiz_id})
+
+    async def delete_saved_quiz_by_id(
+        self,
+        saved_quiz_id: str,
+        *,
+        user_id: Optional[str] = None,
+    ) -> int:
+        query: dict[str, object] = {}
+        try:
+            query["_id"] = ObjectId(saved_quiz_id)
+        except InvalidId:
+            return 0
+        if user_id is not None:
+            query["user_id"] = user_id
+        result = await self.saved_quizzes_collection.delete_one(query)
+        return result.deleted_count
 
     async def upsert_quiz_history(self, quiz_history: QuizHistoryDocumentV2) -> QuizHistoryDocumentV2:
         payload = quiz_history.model_dump(by_alias=True)

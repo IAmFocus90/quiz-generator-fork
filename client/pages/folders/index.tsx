@@ -19,11 +19,16 @@ import {
 } from "../../lib/functions/folders";
 
 interface Folder {
-  _id: string;
+  id: string;
+  _id?: string;
+  legacy_id?: string;
   name: string;
   created_at: string;
   quizzes: any[];
+  quiz_count?: number;
 }
+
+const getFolderId = (folder: Partial<Folder>) => folder.id || folder._id || "";
 
 const FoldersPage = () => {
   const router = useRouter();
@@ -53,7 +58,7 @@ const FoldersPage = () => {
   const handleDeleteFolder = async (folderId: string) => {
     try {
       await deleteFolder(folderId);
-      setFolders((prev) => prev.filter((f) => f._id !== folderId));
+      setFolders((prev) => prev.filter((f) => getFolderId(f) !== folderId));
       toast.success("Folder deleted successfully");
     } catch (err) {
       console.error(err);
@@ -65,7 +70,9 @@ const FoldersPage = () => {
     if (!folderIds.length) return;
     try {
       await bulkDeleteFolders(folderIds);
-      setFolders((prev) => prev.filter((f) => !folderIds.includes(f._id)));
+      setFolders((prev) =>
+        prev.filter((f) => !folderIds.includes(getFolderId(f))),
+      );
       toast.success("Selected folders deleted successfully");
     } catch (err) {
       console.error(err);
@@ -104,15 +111,15 @@ const FoldersPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {folders.map((folder) => (
                 <FolderCard
-                  key={folder._id}
+                  key={getFolderId(folder)}
                   folder={folder}
-                  isSelected={selectedFolders.includes(folder._id)}
-                  onOpen={() => router.push(`/folders/${folder._id}`)}
+                  isSelected={selectedFolders.includes(getFolderId(folder))}
+                  onOpen={() => router.push(`/folders/${getFolderId(folder)}`)}
                   onToggleSelect={() =>
                     setSelectedFolders((prev) =>
-                      prev.includes(folder._id)
-                        ? prev.filter((id) => id !== folder._id)
-                        : [...prev, folder._id],
+                      prev.includes(getFolderId(folder))
+                        ? prev.filter((id) => id !== getFolderId(folder))
+                        : [...prev, getFolderId(folder)],
                     )
                   }
                 />

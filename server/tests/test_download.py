@@ -1,6 +1,8 @@
 import pytest
 
 from unittest.mock import patch
+from unittest.mock import AsyncMock
+from bson import ObjectId
 
 from fastapi import HTTPException
 
@@ -16,19 +18,14 @@ from docx import Document
 
 from pypdf import PdfReader
 
-from server.api.v1.crud.download_quiz import (
-
-    download_quiz,
-
-    generate_csv,
-
-    generate_docx,
-
-    generate_pdf,
-
-    generate_txt
-
-    )
+from server.api.v1.crud.download.download_quiz import (
+    download_mock_quiz,
+    download_quiz_by_id,
+)
+from server.api.v1.crud.generate_csv import generate_csv
+from server.api.v1.crud.generate_docx import generate_docx
+from server.api.v1.crud.generate_pdf import generate_pdf
+from server.api.v1.crud.generate_txt import generate_txt
 
 
 client = TestClient(app)
@@ -53,15 +50,15 @@ def mock_generate_file(data):
 
 ])
 
-@patch("server.api.v1.crud.download_quiz.quiz_data_multiple_choice", new=[{"q": "A"}] * 10)
+@patch("server.api.v1.crud.download.download_quiz.quiz_data_multiple_choice", new=[{"q": "A"}] * 10)
 
-@patch("server.api.v1.crud.download_quiz.generate_txt", side_effect=mock_generate_file)
+@patch("server.api.v1.crud.download.download_quiz.generate_txt", side_effect=mock_generate_file)
 
-@patch("server.api.v1.crud.download_quiz.generate_csv", side_effect=mock_generate_file)
+@patch("server.api.v1.crud.download.download_quiz.generate_csv", side_effect=mock_generate_file)
 
-@patch("server.api.v1.crud.download_quiz.generate_pdf", side_effect=mock_generate_file)
+@patch("server.api.v1.crud.download.download_quiz.generate_pdf", side_effect=mock_generate_file)
 
-@patch("server.api.v1.crud.download_quiz.generate_docx", side_effect=mock_generate_file)
+@patch("server.api.v1.crud.download.download_quiz.generate_docx", side_effect=mock_generate_file)
 
 def test_download_quiz_valid_formats(
 
@@ -71,7 +68,7 @@ def test_download_quiz_valid_formats(
 
     """Test if download_quiz correctly returns a StreamingResponse with valid formats."""
 
-    response = download_quiz(format=format, question_type="multichoice", num_question=5)
+    response = download_mock_quiz(format=format, question_type="multichoice", num_question=5)
 
 
     assert isinstance(response, StreamingResponse)
@@ -89,7 +86,7 @@ def test_download_quiz_invalid_question_type(question_type):
 
     with pytest.raises(HTTPException) as exc:
 
-        download_quiz(format="txt", question_type=question_type, num_question=5)
+        download_mock_quiz(format="txt", question_type=question_type, num_question=5)
 
     assert exc.value.status_code == 400
 
@@ -104,7 +101,7 @@ def test_download_quiz_invalid_format(format):
 
     with pytest.raises(HTTPException) as exc:
 
-        download_quiz(format=format, question_type="multichoice", num_question=5)
+        download_mock_quiz(format=format, question_type="multichoice", num_question=5)
 
     assert exc.value.status_code == 400
 
@@ -356,4 +353,46 @@ def test_generate_pdf(sample_quiz_data):
     assert "Answer: Photosynthesis is the process" in content
 
 
+@pytest.mark.asyncio
+async def test_download_quiz_by_id_reads_canonical_v2_quiz_and_normalizes_answers():
+    v2_collection = AsyncMock()
+    legacy_ai_collection = AsyncMock()
+    legacy_manual_collection = AsyncMock()
 
+    v2_collection.find_one.return_value = {
+        "_id": ObjectId("69e78f93594339fd166131ea"),
+        "questions": [
+            {
+                "question": "What is the main goal of AI automation?",
+                "options": [
+                    "A) To replace all human jobs",
+                    "B) To perform tasks without human intervention",
+                ],
+                "correct_answer": "B) To perform tasks without human intervention",
+            }
+        ],
+    }
+    legacy_ai_collection.find_one.return_value = None
+    legacy_manual_collection.find_one.return_value = None
+
+    with patch(
+        "server.api.v1.crud.download.download_quiz.get_quizzes_v2_collection",
+        return_value=v2_collection,
+    ), patch(
+        "server.api.v1.crud.download.download_quiz.get_ai_generated_quizzes_collection",
+        return_value=legacy_ai_collection,
+    ), patch(
+        "server.api.v1.crud.download.download_quiz.get_quizzes_collection",
+        return_value=legacy_manual_collection,
+    ), patch(
+        "server.api.v1.crud.download.download_quiz.generate_txt",
+        side_effect=generate_txt,
+    ):
+        response = await download_quiz_by_id(
+            quiz_id="69e78f93594339fd166131ea",
+            file_format="txt",
+            user_id="defaultUserId",
+        )
+
+    assert isinstance(response, StreamingResponse)
+    assert response.media_type == "text/plain"

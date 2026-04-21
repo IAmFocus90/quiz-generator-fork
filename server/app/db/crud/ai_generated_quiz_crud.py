@@ -3,6 +3,7 @@ import logging
 from fastapi.encoders import jsonable_encoder
 from pymongo.errors import DuplicateKeyError
 
+from server.app.db.core.config import settings
 from server.app.db.core.connection import get_ai_generated_quizzes_collection
 from server.app.db.models.ai_generated_quiz_model import AIGeneratedQuiz
 from server.app.db.services.quiz_dual_write_service import QuizDualWriteService
@@ -23,6 +24,21 @@ async def save_ai_generated_quiz(quiz_data: dict):
     try:
         new_quiz = AIGeneratedQuiz(**quiz_data)
         questions_serialized = jsonable_encoder(new_quiz.questions)
+
+        if settings.QUIZ_V2_WRITE_MODE == "v2_only":
+            canonical_quiz = await dual_write_service._mirror_quiz_document(
+                title=quiz_data.get("profession") or "General Knowledge",
+                description=quiz_data.get("custom_instruction"),
+                quiz_type=quiz_data.get("question_type", "multichoice"),
+                owner_user_id=quiz_data.get("user_id"),
+                source="ai",
+                questions=quiz_data["questions"],
+            )
+            return {
+                "message": "Quiz saved successfully",
+                "quiz_id": str(canonical_quiz.id),
+                "duplicate": False,
+            }
 
         existing_quiz = await collection.find_one({"questions": questions_serialized})
         if existing_quiz:
