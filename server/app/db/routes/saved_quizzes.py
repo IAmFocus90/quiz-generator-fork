@@ -1,18 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 
-from bson import ObjectId
-
-from ....app.db.crud.saved_quiz_crud import (
-
-    save_quiz,
-
-    get_saved_quizzes,
-
-    delete_saved_quiz,
-
-    get_saved_quiz_by_id,
-
-)
+from ....app.db.crud.saved_quiz_crud import delete_saved_quiz, save_quiz
 
 from ....app.db.models.saved_quiz_model import SavedQuizModel
 from ....app.db.services.quiz_user_library_read_service import QuizUserLibraryReadService
@@ -39,11 +27,7 @@ async def create_saved_quiz(
     try:
 
         quiz.user_id = str(current_user.id)
-
-        print("Received quiz payload:", quiz.dict())
-
-
-        saved_quiz_id = await save_quiz(
+        saved_quiz = await save_quiz(
 
             user_id=quiz.user_id,
 
@@ -58,14 +42,14 @@ async def create_saved_quiz(
 
         return {
             "message": "Quiz saved successfully",
-            "id": saved_quiz_id,
-            "saved_quiz_id": saved_quiz_id,
-            "quiz_id": saved_quiz_id,
+            "id": str(saved_quiz.id),
+            "quiz_id": saved_quiz.quiz_id,
         }
 
 
+    except HTTPException:
+        raise
     except Exception as e:
-
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -83,8 +67,9 @@ async def list_saved_quizzes(
 
         return quizzes
 
+    except HTTPException:
+        raise
     except Exception as e:
-
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -108,8 +93,9 @@ async def remove_saved_quiz(
 
         return {"message": "Quiz deleted successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
-
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -124,12 +110,6 @@ async def get_saved_quiz(
 ):
 
     try:
-
-        if not ObjectId.is_valid(quiz_id):
-
-            raise HTTPException(status_code=400, detail="Invalid quiz ID")
-
-
         quiz = await read_service.get_saved_quiz_by_id(quiz_id, user_id=str(current_user.id))
 
         if not quiz or quiz.get("user_id") != str(current_user.id):
@@ -139,6 +119,7 @@ async def get_saved_quiz(
 
         return quiz
 
+    except HTTPException:
+        raise
     except Exception as e:
-
         raise HTTPException(status_code=500, detail=str(e))

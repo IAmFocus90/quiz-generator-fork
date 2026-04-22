@@ -580,7 +580,7 @@ async def test_stage5_saved_quiz_v2_only_writes_only_v2_records(
         }
     )
 
-    saved_id = await saved_quiz_crud.save_quiz(
+    saved_reference_obj = await saved_quiz_crud.save_quiz(
         user_id="user-v2-only",
         title="Caching Quiz",
         question_type="multichoice",
@@ -595,7 +595,7 @@ async def test_stage5_saved_quiz_v2_only_writes_only_v2_records(
 
     assert await dual_write_db["saved_quizzes"].count_documents({}) == 0
 
-    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"_id": ObjectId(saved_id)})
+    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"_id": saved_reference_obj.id})
     assert saved_reference is not None
     assert saved_reference["user_id"] == "user-v2-only"
     assert saved_reference["display_title"] == "Caching Quiz"
@@ -612,7 +612,7 @@ async def test_stage5_quiz_history_v2_only_writes_only_v2_records(
     monkeypatch.setattr(update_quiz_history, "dual_write_service", service)
     monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "v2_only")
 
-    history_id = await update_quiz_history.update_quiz_history(
+    history_reference_obj = await update_quiz_history.update_quiz_history(
         {
             "user_id": "user-history-v2",
             "quiz_name": "Queueing",
@@ -630,7 +630,7 @@ async def test_stage5_quiz_history_v2_only_writes_only_v2_records(
 
     assert await dual_write_db["quiz_history"].count_documents({}) == 0
 
-    history_reference = await dual_write_db["quiz_history_v2"].find_one({"_id": ObjectId(history_id)})
+    history_reference = await dual_write_db["quiz_history_v2"].find_one({"_id": history_reference_obj.id})
     assert history_reference is not None
     assert history_reference["user_id"] == "user-history-v2"
 
@@ -667,7 +667,7 @@ async def test_stage5_folder_v2_only_mutations_operate_without_legacy_rows(
         }
     )
 
-    saved_id = await saved_quiz_crud.save_quiz(
+    saved_reference_obj = await saved_quiz_crud.save_quiz(
         user_id="user-folder-v2",
         title="Graphs",
         question_type="multichoice",
@@ -681,7 +681,7 @@ async def test_stage5_folder_v2_only_mutations_operate_without_legacy_rows(
         ],
     )
 
-    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"_id": ObjectId(saved_id)})
+    saved_reference = await dual_write_db["saved_quizzes_v2"].find_one({"_id": saved_reference_obj.id})
     assert saved_reference is not None
 
     source_folder = await service.create_folder_v2(user_id="user-folder-v2", name="Algorithms")
@@ -689,7 +689,7 @@ async def test_stage5_folder_v2_only_mutations_operate_without_legacy_rows(
 
     _folder, folder_item = await service.add_saved_quiz_to_folder_v2(
         folder_id=str(source_folder.id),
-        saved_quiz_id=saved_id,
+        saved_quiz_id=str(saved_reference_obj.id),
         user_id="user-folder-v2",
     )
 

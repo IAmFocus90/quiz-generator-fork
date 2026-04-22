@@ -25,10 +25,7 @@ interface QuizQuestion {
 
 interface SavedQuiz {
   id: string;
-  _id?: string;
-  legacy_id?: string;
   quiz_id: string;
-  legacy_quiz_id?: string | null;
   title: string;
   created_at: string;
   questions?: QuizQuestion[];
@@ -37,13 +34,12 @@ interface SavedQuiz {
 
 interface Folder {
   id: string;
-  _id?: string;
   name: string;
   created_at: string;
 }
 
-const getSavedQuizId = (quiz: Partial<SavedQuiz>) => quiz.id || quiz._id || "";
-const getFolderId = (folder: Partial<Folder>) => folder.id || folder._id || "";
+const getSavedQuizId = (quiz: Partial<SavedQuiz>) => quiz.id || "";
+const getFolderId = (folder: Partial<Folder>) => folder.id || "";
 
 const AddToFolderModal = ({
   isOpen,

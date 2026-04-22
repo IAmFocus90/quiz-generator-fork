@@ -2,17 +2,20 @@ import pytest
 
 from unittest.mock import patch
 from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 from bson import ObjectId
+from pydantic import ValidationError
 
 from fastapi import HTTPException
+from fastapi import Response
 
 from fastapi.responses import StreamingResponse
 
-from fastapi.testclient import TestClient
-
 from io import BytesIO
 
-from server.main import app
+from server.main import download_quiz_handler
+from server.main import limiter
+from server.schemas.query import DownloadQuizQuery
 
 from docx import Document
 
@@ -28,7 +31,14 @@ from server.api.v1.crud.generate_pdf import generate_pdf
 from server.api.v1.crud.generate_txt import generate_txt
 
 
-client = TestClient(app)
+@pytest.fixture(autouse=True)
+def disable_rate_limiter():
+    original_enabled = limiter.enabled
+    limiter.enabled = False
+    try:
+        yield
+    finally:
+        limiter.enabled = original_enabled
 
 
 def mock_generate_file(data):
@@ -122,34 +132,28 @@ def test_download_quiz_invalid_format(format):
 
 ])
 
-def test_download_quiz_api_valid(format, question_type, num_question):
+@pytest.mark.asyncio
+async def test_download_quiz_api_valid(format, question_type, num_question):
 
-    response = client.get(
-
-        "/download-quiz",
-
-        params={
-
-            "format": format,
-
-            "question_type": question_type,
-
-            "num_question": num_question,
-
-            "user_id": "test_user"
-
-        }
-
+    response = await download_quiz_handler(
+        request=MagicMock(),
+        response=Response(),
+        query=DownloadQuizQuery(
+            format=format,
+            question_type=question_type,
+            num_question=num_question,
+        ),
     )
 
-
-    assert response.status_code == 200
-
+    assert isinstance(response, StreamingResponse)
+    assert response.media_type == {
+        "txt": "text/plain",
+        "csv": "text/csv",
+        "pdf": "application/pdf",
+        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }[format]
     assert "Content-Disposition" in response.headers
-
     assert f"attachment; filename=quiz_data.{format}" in response.headers["Content-Disposition"]
-
-    assert response.content
 
 
 
@@ -161,33 +165,31 @@ def test_download_quiz_api_valid(format, question_type, num_question):
     ("csv", "true-false", 0, 422),
 
 ])
+@pytest.mark.asyncio
+async def test_download_quiz_api_invalid(format, question_type, num_question, expected_status):
+    if expected_status == 422:
+        with pytest.raises(ValidationError):
+            DownloadQuizQuery(
+                format=format,
+                question_type=question_type,
+                num_question=num_question,
+            )
+        return
 
-def test_download_quiz_api_invalid(format, question_type, num_question, expected_status):
+    with pytest.raises(HTTPException) as exc:
+        await download_quiz_handler(
+            request=MagicMock(),
+            response=Response(),
+            query=DownloadQuizQuery(
+                format=format,
+                question_type=question_type,
+                num_question=num_question,
+            ),
+        )
 
-    response = client.get(
-
-        "/download-quiz",
-
-        params={
-
-            "format": format,
-
-            "question_type": question_type,
-
-            "num_question": num_question,
-
-            "user_id": "test_user"
-
-        }
-
-    )
-
-
-    assert response.status_code == expected_status
-
-    assert "application/json" in response.headers["content-type"]
-
-    assert "detail" in response.json()
+    assert exc.value.status_code == expected_status
+    assert exc.value.detail
+    assert exc.value.detail
 
 
 
@@ -391,7 +393,6 @@ async def test_download_quiz_by_id_reads_canonical_v2_quiz_and_normalizes_answer
         response = await download_quiz_by_id(
             quiz_id="69e78f93594339fd166131ea",
             file_format="txt",
-            user_id="defaultUserId",
         )
 
     assert isinstance(response, StreamingResponse)

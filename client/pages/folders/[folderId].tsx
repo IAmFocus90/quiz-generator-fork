@@ -15,7 +15,7 @@ import Footer from "../../components/home/Footer";
 import { useAuth } from "../../contexts/authContext";
 import RequireAuth from "../../components/auth/RequireAuth";
 
-const getFolderItemId = (quiz: any) => quiz?.id || quiz?._id || "";
+const getFolderItemId = (quiz: any) => quiz?.id || "";
 
 const FolderView = () => {
   const router = useRouter();

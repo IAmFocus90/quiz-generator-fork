@@ -10,7 +10,6 @@ type FileFormat = "txt" | "csv" | "pdf" | "docx";
 
 export default function DownloadQuizButton({
   quizId,
-  userId,
   question_type,
   numQuestion,
 }: DownloadQuizProps) {
@@ -34,11 +33,9 @@ export default function DownloadQuizButton({
           ? {
               quiz_id: quizId,
               format: selectedFormat,
-              user_id: userId,
             }
           : {
               pattern: QueryPattern.DownloadQuiz,
-              user_id: userId,
               format: selectedFormat,
               question_type: question_type,
               num_question: numQuestion,

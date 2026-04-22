@@ -17,7 +17,7 @@ async def get_user_quiz_history(current_user=Depends(get_current_user)):
     JWT token required in Authorization header.
     """
 
-    user_id = current_user.id
+    user_id = str(current_user.id)
 
     quizzes = await read_service.get_quiz_history_for_user(user_id)
 

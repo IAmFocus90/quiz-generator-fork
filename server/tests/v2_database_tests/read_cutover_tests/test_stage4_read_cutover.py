@@ -3,17 +3,12 @@ from datetime import datetime
 import pytest
 from bson import ObjectId
 
-from server.app.db.core.config import settings
-
-
 @pytest.mark.asyncio
-async def test_stage4_history_v2_only_reads_legacy_compatible_payload(
+async def test_stage4_history_reads_v2_payload(
     read_cutover_db,
     read_service_factory,
-    monkeypatch,
 ):
     service = read_service_factory()
-    monkeypatch.setattr(settings, "QUIZ_V2_HISTORY_READ_MODE", "v2_only")
 
     quiz_id = ObjectId()
     history_id = ObjectId()
@@ -60,38 +55,23 @@ async def test_stage4_history_v2_only_reads_legacy_compatible_payload(
 
     assert len(payload) == 1
     assert payload[0]["id"] is not None
-    assert payload[0]["legacy_id"] == str(history_id)
-    assert payload[0]["_id"] == str(history_id)
     assert payload[0]["quiz_id"] == str(quiz_id)
-    assert payload[0]["legacy_quiz_id"] == "legacy-ai-1"
+    assert payload[0]["quiz_name"] == "Caching"
     assert payload[0]["question_type"] == "multichoice"
     assert payload[0]["questions"][0]["answer"] == "Keys"
     assert payload[0]["questions"][0]["question_type"] == "multichoice"
 
 
 @pytest.mark.asyncio
-async def test_stage4_saved_compare_mode_returns_legacy_contract(
+async def test_stage4_saved_reads_v2_payload(
     read_cutover_db,
     read_service_factory,
-    monkeypatch,
 ):
     service = read_service_factory()
-    monkeypatch.setattr(settings, "QUIZ_V2_SAVED_READ_MODE", "compare")
 
     saved_id = ObjectId()
     quiz_id = ObjectId()
     created_at = datetime.utcnow()
-    await read_cutover_db["saved_quizzes"].insert_one(
-        {
-            "_id": saved_id,
-            "user_id": "user-1",
-            "quiz_id": "legacy-ai-1",
-            "title": "Legacy Saved Quiz",
-            "question_type": "multichoice",
-            "questions": [{"question": "Legacy question", "options": ["A", "B"], "question_type": "multichoice"}],
-            "created_at": created_at,
-        }
-    )
     await read_cutover_db["quizzes_v2"].insert_one(
         {
             "_id": quiz_id,
@@ -132,20 +112,18 @@ async def test_stage4_saved_compare_mode_returns_legacy_contract(
     payload = await service.get_saved_quizzes_for_user("user-1")
 
     assert len(payload) == 1
-    assert payload[0]["_id"] == str(saved_id)
+    assert payload[0]["id"] is not None
     assert payload[0]["title"] == "Legacy Saved Quiz"
     assert payload[0]["questions"][0]["question"] == "Legacy question"
-    assert "correct_answer" not in payload[0]["questions"][0]
+    assert payload[0]["questions"][0]["correct_answer"] == "A"
 
 
 @pytest.mark.asyncio
-async def test_stage4_saved_v2_only_preserves_legacy_saved_id_and_restores_answers(
+async def test_stage4_saved_detail_reads_v2_payload(
     read_cutover_db,
     read_service_factory,
-    monkeypatch,
 ):
     service = read_service_factory()
-    monkeypatch.setattr(settings, "QUIZ_V2_SAVED_READ_MODE", "v2_only")
 
     saved_id = ObjectId()
     quiz_id = ObjectId()
@@ -192,23 +170,17 @@ async def test_stage4_saved_v2_only_preserves_legacy_saved_id_and_restores_answe
 
     assert payload is not None
     assert payload["id"] is not None
-    assert payload["legacy_id"] == str(saved_id)
-    assert payload["_id"] == str(saved_id)
     assert payload["title"] == "Russia"
     assert payload["quiz_id"] == str(quiz_id)
-    assert payload["legacy_quiz_id"] == "legacy-russia"
-    assert payload["canonical_quiz_id"] == str(quiz_id)
     assert payload["questions"][0]["correct_answer"] == "B) Moscow"
 
 
 @pytest.mark.asyncio
-async def test_stage4_folder_v2_only_preserves_folder_and_item_legacy_ids_and_position(
+async def test_stage4_folder_reads_v2_payload_and_preserves_position(
     read_cutover_db,
     read_service_factory,
-    monkeypatch,
 ):
     service = read_service_factory()
-    monkeypatch.setattr(settings, "QUIZ_V2_FOLDER_READ_MODE", "v2_only")
 
     folder_v2_id = ObjectId()
     quiz_one_id = ObjectId()
@@ -295,24 +267,18 @@ async def test_stage4_folder_v2_only_preserves_folder_and_item_legacy_ids_and_po
 
     assert payload is not None
     assert payload["id"] == str(folder_v2_id)
-    assert payload["legacy_id"] == "legacy-folder-1"
-    assert payload["_id"] == "legacy-folder-1"
-    assert [item["_id"] for item in payload["quizzes"]] == ["item-1", "item-2"]
     assert all(item.get("id") for item in payload["quizzes"])
     assert payload["quizzes"][0]["quiz_id"] == str(quiz_two_id)
-    assert payload["quizzes"][0]["legacy_quiz_id"] == "legacy-quiz-1"
     assert payload["quizzes"][0]["title"] == "Russia"
     assert payload["quizzes"][1]["title"] == "USA Military"
 
 
 @pytest.mark.asyncio
-async def test_stage4_shared_v2_only_resolves_saved_quiz_legacy_id(
+async def test_stage4_shared_reads_v2_payload_and_can_resolve_saved_legacy_id(
     read_cutover_db,
     shared_read_service_factory,
-    monkeypatch,
 ):
     service = shared_read_service_factory()
-    monkeypatch.setattr(settings, "QUIZ_V2_SHARE_READ_MODE", "v2_only")
 
     saved_id = ObjectId()
     quiz_id = ObjectId()
@@ -352,6 +318,5 @@ async def test_stage4_shared_v2_only_resolves_saved_quiz_legacy_id(
 
     assert payload is not None
     assert payload["id"] == str(quiz_id)
-    assert payload["legacy_quiz_id"] == "legacy-shared-ai"
     assert payload["title"] == "Shared Quiz"
     assert payload["questions"][0]["correct_answer"] == "B"
