@@ -70,6 +70,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "legacy_folder_id": {"bsonType": ["string", "null"]},
                     "created_at": {"bsonType": "date"},
                     "updated_at": {"bsonType": "date"},
+                    "deleted_at": {"bsonType": ["date", "null"]},
                 },
             }
         },
@@ -85,6 +86,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "display_title": {"bsonType": ["string", "null"]},
                     "legacy_folder_item_id": {"bsonType": ["string", "null"]},
                     "created_at": {"bsonType": "date"},
+                    "deleted_at": {"bsonType": ["date", "null"]},
                 },
             }
         },
@@ -98,6 +100,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "display_title": {"bsonType": ["string", "null"]},
                     "legacy_saved_quiz_id": {"bsonType": ["string", "null"]},
                     "saved_at": {"bsonType": "date"},
+                    "deleted_at": {"bsonType": ["date", "null"]},
                 },
             }
         },
@@ -112,6 +115,7 @@ def get_v2_collection_validators() -> dict[str, dict]:
                     "metadata": {"bsonType": ["object", "null"]},
                     "legacy_history_id": {"bsonType": ["string", "null"]},
                     "created_at": {"bsonType": "date"},
+                    "deleted_at": {"bsonType": ["date", "null"]},
                 },
             }
         },

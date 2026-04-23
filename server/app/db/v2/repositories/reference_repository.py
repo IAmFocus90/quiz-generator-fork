@@ -40,10 +40,39 @@ class ReferenceV2Repository:
             return None
         return min(valid_values)
 
+    @staticmethod
+    def _active_query() -> dict:
+        return {"$or": [{"deleted_at": {"$exists": False}}, {"deleted_at": None}]}
+
     async def insert_folder(self, folder: FolderDocumentV2) -> FolderDocumentV2:
         payload = folder.model_dump(by_alias=True)
-        result = await self.folders_collection.insert_one(payload)
+        payload.pop("_id", None)
+        created_at = payload.pop("created_at")
+        updated_at = payload.pop("updated_at")
+        existing = await self.folders_collection.find_one({"user_id": folder.user_id, "name": folder.name})
+        if existing and existing.get("deleted_at") is not None:
+            updates = {
+                **payload,
+                "created_at": existing.get("created_at", created_at),
+                "updated_at": updated_at,
+            }
+            updates["deleted_at"] = None
+            updated = await self.folders_collection.find_one_and_update(
+                {"_id": existing["_id"]},
+                {"$set": updates},
+                return_document=ReturnDocument.AFTER,
+            )
+            return FolderDocumentV2(**updated)
+        result = await self.folders_collection.insert_one(
+            {
+                **payload,
+                "created_at": created_at,
+                "updated_at": updated_at,
+            }
+        )
         payload["_id"] = result.inserted_id
+        payload["created_at"] = created_at
+        payload["updated_at"] = updated_at
         return FolderDocumentV2(**payload)
 
     async def insert_folder_item(self, folder_item: FolderItemDocumentV2) -> FolderItemDocumentV2:
@@ -67,6 +96,9 @@ class ReferenceV2Repository:
     async def upsert_folder_by_legacy_id(self, folder: FolderDocumentV2) -> FolderDocumentV2:
         payload = folder.model_dump(by_alias=True)
         payload.pop("_id", None)
+        existing = await self.folders_collection.find_one({"legacy_folder_id": folder.legacy_folder_id})
+        if existing is not None and existing.get("deleted_at") is not None:
+            payload["deleted_at"] = existing["deleted_at"]
         updated = await self.folders_collection.find_one_and_update(
             {"legacy_folder_id": folder.legacy_folder_id},
             {"$set": payload},
@@ -76,12 +108,16 @@ class ReferenceV2Repository:
         return FolderDocumentV2(**updated)
 
     async def get_folder_by_legacy_id(self, legacy_folder_id: str) -> FolderDocumentV2 | None:
-        document = await self.folders_collection.find_one({"legacy_folder_id": legacy_folder_id})
+        document = await self.folders_collection.find_one(
+            {"$and": [{"legacy_folder_id": legacy_folder_id}, self._active_query()]}
+        )
         return FolderDocumentV2(**document) if document else None
 
     async def get_folder_by_id(self, folder_id: str) -> FolderDocumentV2 | None:
         try:
-            document = await self.folders_collection.find_one({"_id": ObjectId(folder_id)})
+            document = await self.folders_collection.find_one(
+                {"$and": [{"_id": ObjectId(folder_id)}, self._active_query()]}
+            )
         except InvalidId:
             return None
         return FolderDocumentV2(**document) if document else None
@@ -90,7 +126,9 @@ class ReferenceV2Repository:
         return await self.get_folder_by_legacy_id(folder_id) or await self.get_folder_by_id(folder_id)
 
     async def list_folders_for_user(self, user_id: str) -> list[FolderDocumentV2]:
-        documents = await self.folders_collection.find({"user_id": user_id}).to_list(length=500)
+        documents = await self.folders_collection.find(
+            {"$and": [{"user_id": user_id}, self._active_query()]}
+        ).to_list(length=500)
         return [FolderDocumentV2(**document) for document in documents]
 
     async def update_folder(
@@ -121,28 +159,48 @@ class ReferenceV2Repository:
         return FolderDocumentV2(**updated) if updated else None
 
     async def delete_folder_by_legacy_id(self, legacy_folder_id: str):
-        folder = await self.get_folder_by_legacy_id(legacy_folder_id)
+        folder = await self.folders_collection.find_one({"legacy_folder_id": legacy_folder_id})
         if folder:
-            await self.folder_items_collection.delete_many({"folder_id": str(folder.id)})
-        await self.folders_collection.delete_one({"legacy_folder_id": legacy_folder_id})
+            deleted_at = datetime.utcnow()
+            await self.folder_items_collection.update_many(
+                {"folder_id": str(folder["_id"]), **self._active_query()},
+                {"$set": {"deleted_at": deleted_at}},
+            )
+            await self.folders_collection.update_one(
+                {"_id": folder["_id"]},
+                {"$set": {"deleted_at": deleted_at, "updated_at": deleted_at}},
+            )
 
     async def delete_folder_by_id(self, folder_id: str):
         try:
             object_id = ObjectId(folder_id)
         except InvalidId:
             return
-        await self.folder_items_collection.delete_many({"folder_id": folder_id})
-        await self.folders_collection.delete_one({"_id": object_id})
+        deleted_at = datetime.utcnow()
+        await self.folder_items_collection.update_many(
+            {"folder_id": folder_id, **self._active_query()},
+            {"$set": {"deleted_at": deleted_at}},
+        )
+        await self.folders_collection.update_one(
+            {"_id": object_id, **self._active_query()},
+            {"$set": {"deleted_at": deleted_at, "updated_at": deleted_at}},
+        )
 
     async def delete_folder_by_public_id(self, folder_id: str):
         folder = await self.get_folder_by_public_id(folder_id)
         if folder:
             await self.delete_folder_by_id(str(folder.id))
 
-    async def upsert_folder_item_by_legacy_id(self, folder_item: FolderItemDocumentV2) -> FolderItemDocumentV2:
+    async def upsert_folder_item_by_legacy_id(
+        self,
+        folder_item: FolderItemDocumentV2,
+        *,
+        revive_deleted: bool = False,
+    ) -> FolderItemDocumentV2:
         payload = folder_item.model_dump(by_alias=True)
         payload.pop("_id", None)
         created_at = payload.pop("created_at")
+        deleted_at = payload.pop("deleted_at", None)
         legacy_match = None
         if folder_item.legacy_folder_item_id:
             legacy_match = await self.folder_items_collection.find_one(
@@ -169,6 +227,9 @@ class ReferenceV2Repository:
                 or target_match.get("display_title")
                 or legacy_match.get("display_title")
             )
+            merged_deleted_at = target_match.get("deleted_at")
+            if revive_deleted:
+                merged_deleted_at = None
             updated = await self.folder_items_collection.find_one_and_update(
                 {"_id": target_match["_id"]},
                 {
@@ -178,6 +239,7 @@ class ReferenceV2Repository:
                         "position": merged_position,
                         "display_title": merged_display_title,
                         "legacy_folder_item_id": target_legacy_item_id or folder_item.legacy_folder_item_id,
+                        "deleted_at": merged_deleted_at,
                     }
                 },
                 return_document=ReturnDocument.AFTER,
@@ -199,6 +261,14 @@ class ReferenceV2Repository:
                 if folder_item.legacy_folder_item_id
                 else {"folder_id": folder_item.folder_id, "quiz_id": folder_item.quiz_id}
             )
+        if revive_deleted:
+            payload["deleted_at"] = None
+        elif legacy_match is not None and legacy_match.get("deleted_at") is not None:
+            payload["deleted_at"] = legacy_match.get("deleted_at")
+        elif target_match is not None and target_match.get("deleted_at") is not None:
+            payload["deleted_at"] = target_match.get("deleted_at")
+        elif deleted_at is not None:
+            payload["deleted_at"] = deleted_at
         updated = await self.folder_items_collection.find_one_and_update(
             filter_query,
             {"$set": payload, "$setOnInsert": {"created_at": created_at}},
@@ -209,13 +279,15 @@ class ReferenceV2Repository:
 
     async def get_folder_item_by_legacy_id(self, legacy_folder_item_id: str) -> FolderItemDocumentV2 | None:
         document = await self.folder_items_collection.find_one(
-            {"legacy_folder_item_id": legacy_folder_item_id}
+            {"$and": [{"legacy_folder_item_id": legacy_folder_item_id}, self._active_query()]}
         )
         return FolderItemDocumentV2(**document) if document else None
 
     async def get_folder_item_by_id(self, folder_item_id: str) -> FolderItemDocumentV2 | None:
         try:
-            document = await self.folder_items_collection.find_one({"_id": ObjectId(folder_item_id)})
+            document = await self.folder_items_collection.find_one(
+                {"$and": [{"_id": ObjectId(folder_item_id)}, self._active_query()]}
+            )
         except InvalidId:
             return None
         return FolderItemDocumentV2(**document) if document else None
@@ -226,11 +298,16 @@ class ReferenceV2Repository:
         )
 
     async def list_folder_items_for_folder(self, folder_id: str) -> list[FolderItemDocumentV2]:
-        documents = await self.folder_items_collection.find({"folder_id": folder_id}).to_list(length=1000)
+        documents = await self.folder_items_collection.find(
+            {"$and": [{"folder_id": folder_id}, self._active_query()]}
+        ).to_list(length=1000)
         return [FolderItemDocumentV2(**document) for document in documents]
 
     async def delete_folder_item_by_legacy_id(self, legacy_folder_item_id: str):
-        await self.folder_items_collection.delete_one({"legacy_folder_item_id": legacy_folder_item_id})
+        await self.folder_items_collection.update_one(
+            {"legacy_folder_item_id": legacy_folder_item_id, **self._active_query()},
+            {"$set": {"deleted_at": datetime.utcnow()}},
+        )
 
     async def update_folder_item(
         self,
@@ -268,17 +345,26 @@ class ReferenceV2Repository:
             object_id = ObjectId(folder_item_id)
         except InvalidId:
             return
-        await self.folder_items_collection.delete_one({"_id": object_id})
+        await self.folder_items_collection.update_one(
+            {"_id": object_id, **self._active_query()},
+            {"$set": {"deleted_at": datetime.utcnow()}},
+        )
 
     async def delete_folder_item_by_public_id(self, folder_item_id: str):
         item = await self.get_folder_item_by_public_id(folder_item_id)
         if item:
             await self.delete_folder_item_by_id(str(item.id))
 
-    async def upsert_saved_quiz(self, saved_quiz: SavedQuizDocumentV2) -> SavedQuizDocumentV2:
+    async def upsert_saved_quiz(
+        self,
+        saved_quiz: SavedQuizDocumentV2,
+        *,
+        revive_deleted: bool = False,
+    ) -> SavedQuizDocumentV2:
         payload = saved_quiz.model_dump(by_alias=True)
         payload.pop("_id", None)
         saved_at = payload.pop("saved_at")
+        deleted_at = payload.pop("deleted_at", None)
         legacy_match = None
         if saved_quiz.legacy_saved_quiz_id:
             legacy_match = await self.saved_quizzes_collection.find_one(
@@ -299,6 +385,9 @@ class ReferenceV2Repository:
                 or target_match.get("display_title")
                 or legacy_match.get("display_title")
             )
+            merged_deleted_at = target_match.get("deleted_at")
+            if revive_deleted:
+                merged_deleted_at = None
             updated = await self.saved_quizzes_collection.find_one_and_update(
                 {"_id": target_match["_id"]},
                 {
@@ -306,6 +395,7 @@ class ReferenceV2Repository:
                         **payload,
                         "display_title": merged_display_title,
                         "saved_at": merged_saved_at,
+                        "deleted_at": merged_deleted_at,
                     }
                 },
                 return_document=ReturnDocument.AFTER,
@@ -324,6 +414,14 @@ class ReferenceV2Repository:
                 if saved_quiz.legacy_saved_quiz_id
                 else {"user_id": saved_quiz.user_id, "quiz_id": saved_quiz.quiz_id}
             )
+        if revive_deleted:
+            payload["deleted_at"] = None
+        elif legacy_match is not None and legacy_match.get("deleted_at") is not None:
+            payload["deleted_at"] = legacy_match.get("deleted_at")
+        elif target_match is not None and target_match.get("deleted_at") is not None:
+            payload["deleted_at"] = target_match.get("deleted_at")
+        elif deleted_at is not None:
+            payload["deleted_at"] = deleted_at
         updated = await self.saved_quizzes_collection.find_one_and_update(
             filter_query,
             {"$set": payload, "$setOnInsert": {"saved_at": saved_at}},
@@ -333,7 +431,9 @@ class ReferenceV2Repository:
         return SavedQuizDocumentV2(**updated)
 
     async def list_saved_quizzes_for_user(self, user_id: str) -> list[SavedQuizDocumentV2]:
-        documents = await self.saved_quizzes_collection.find({"user_id": user_id}).to_list(length=500)
+        documents = await self.saved_quizzes_collection.find(
+            {"$and": [{"user_id": user_id}, self._active_query()]}
+        ).to_list(length=500)
         return [SavedQuizDocumentV2(**document) for document in documents]
 
     async def get_saved_quiz_by_legacy_id(
@@ -344,7 +444,7 @@ class ReferenceV2Repository:
         query: dict[str, str] = {"legacy_saved_quiz_id": legacy_saved_quiz_id}
         if user_id is not None:
             query["user_id"] = user_id
-        document = await self.saved_quizzes_collection.find_one(query)
+        document = await self.saved_quizzes_collection.find_one({"$and": [query, self._active_query()]})
         return SavedQuizDocumentV2(**document) if document else None
 
     async def get_saved_quiz_by_id(
@@ -359,7 +459,7 @@ class ReferenceV2Repository:
             return None
         if user_id is not None:
             query["user_id"] = user_id
-        document = await self.saved_quizzes_collection.find_one(query)
+        document = await self.saved_quizzes_collection.find_one({"$and": [query, self._active_query()]})
         return SavedQuizDocumentV2(**document) if document else None
 
     async def get_saved_quiz_by_public_id(
@@ -373,7 +473,10 @@ class ReferenceV2Repository:
         )
 
     async def delete_saved_quiz(self, user_id: str, quiz_id: str):
-        await self.saved_quizzes_collection.delete_one({"user_id": user_id, "quiz_id": quiz_id})
+        await self.saved_quizzes_collection.update_one(
+            {"user_id": user_id, "quiz_id": quiz_id, **self._active_query()},
+            {"$set": {"deleted_at": datetime.utcnow()}},
+        )
 
     async def delete_saved_quiz_by_id(
         self,
@@ -388,13 +491,19 @@ class ReferenceV2Repository:
             return 0
         if user_id is not None:
             query["user_id"] = user_id
-        result = await self.saved_quizzes_collection.delete_one(query)
-        return result.deleted_count
+        result = await self.saved_quizzes_collection.update_one(
+            {"$and": [query, self._active_query()]},
+            {"$set": {"deleted_at": datetime.utcnow()}},
+        )
+        return result.modified_count
 
     async def upsert_quiz_history(self, quiz_history: QuizHistoryDocumentV2) -> QuizHistoryDocumentV2:
         payload = quiz_history.model_dump(by_alias=True)
         payload.pop("_id", None)
         created_at = payload.pop("created_at")
+        existing = await self.quiz_history_collection.find_one({"legacy_history_id": quiz_history.legacy_history_id})
+        if existing is not None and existing.get("deleted_at") is not None:
+            payload["deleted_at"] = existing["deleted_at"]
         updated = await self.quiz_history_collection.find_one_and_update(
             {"legacy_history_id": quiz_history.legacy_history_id},
             {"$set": payload, "$setOnInsert": {"created_at": created_at}},
@@ -404,5 +513,26 @@ class ReferenceV2Repository:
         return QuizHistoryDocumentV2(**updated)
 
     async def list_quiz_history_for_user(self, user_id: str) -> list[QuizHistoryDocumentV2]:
-        documents = await self.quiz_history_collection.find({"user_id": user_id}).to_list(length=500)
+        documents = await self.quiz_history_collection.find(
+            {"$and": [{"user_id": user_id}, self._active_query()]}
+        ).to_list(length=500)
         return [QuizHistoryDocumentV2(**document) for document in documents]
+
+    async def soft_delete_quiz_history_by_id(
+        self,
+        history_id: str,
+        *,
+        user_id: Optional[str] = None,
+    ) -> int:
+        query: dict[str, object] = {}
+        try:
+            query["_id"] = ObjectId(history_id)
+        except InvalidId:
+            return 0
+        if user_id is not None:
+            query["user_id"] = user_id
+        result = await self.quiz_history_collection.update_one(
+            {"$and": [query, self._active_query()]},
+            {"$set": {"deleted_at": datetime.utcnow()}},
+        )
+        return result.modified_count
