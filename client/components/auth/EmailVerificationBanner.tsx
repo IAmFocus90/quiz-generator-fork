@@ -51,9 +51,16 @@ export default function EmailVerificationBanner() {
     }
   };
 
-  // ✅ Open modal directly
-  const onVerifyNow = () => {
-    setShowModal(true);
+  // ✅ Open modal directly, ensuring email is sent
+  const onVerifyNow = async () => {
+    if (!user?.email) return;
+
+    try {
+      await resendVerification(user.email);
+      setShowModal(true);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to send verification email");
+    }
   };
 
   return (
@@ -101,7 +108,7 @@ export default function EmailVerificationBanner() {
         </div>
       </div>
 
-      {/* 🔥 Verification Modal */}
+      {/*Verification Modal*/}
       <VerifyEmailModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
@@ -109,11 +116,10 @@ export default function EmailVerificationBanner() {
         onVerified={async () => {
           toast.success("Email verified successfully");
 
-          // 🔄 Refresh user state globally
           await refreshUser?.();
 
           setShowModal(false);
-          setDismissed(true); // hide banner after success
+          setDismissed(true); 
         }}
       />
     </>
