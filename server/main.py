@@ -143,7 +143,6 @@ async def get_user_quiz_history_handler(
     response: Response,
     query: GetUserQuizHistoryQuery = Body(...),
     current_user: UserOut = Depends(get_verified_user),  
-
 ) -> List[Any]:
     logger.info("Received query: %s", query)
 

@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
+import toast from "react-hot-toast";
 import publicApi from "../../lib/functions/publicApi";
 import { api } from "../../lib/functions/auth";
-import { Observable } from "rxjs";
+import { useAuth } from "../../contexts/authContext";
+import SignInModal from "../auth/SignInModal";
+import SignUpModal from "../auth/SignUpModal";
 import { QueryPattern } from "../../constants/patterns";
 import { DownloadQuizProps } from "../../interfaces/props";
 
@@ -14,18 +17,45 @@ export default function DownloadQuizButton({
   question_type,
   numQuestion,
 }: DownloadQuizProps) {
+  const { user } = useAuth();
   const [selectedFormat, setSelectedFormat] = useState<FileFormat>("txt");
   const [isDownloading, setIsDownloading] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
 
   const handleFormatChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedFormat(event.target.value as FileFormat);
   };
 
-  const handleDownload = () => {
+  const switchToSignUp = () => {
+    setShowSignInModal(false);
+    setShowSignUpModal(true);
+  };
+
+  const switchToSignIn = () => {
+    setShowSignUpModal(false);
+    setShowSignInModal(true);
+  };
+
+  const handleDownload = async () => {
+    if (!user) {
+      toast.error("Please register or sign in to download quizzes.");
+      setShowSignUpModal(true);
+      return;
+    }
+
+    if (user.is_verified === false) {
+      toast.error("Please verify your email to download quizzes.");
+      if (typeof window !== "undefined") {
+        window.location.assign("/auth/verify-email-notice");
+      }
+      return;
+    }
+
     setIsDownloading(true);
 
-    const observable = new Observable<void>((subscriber) => {
+    try {
       const isRealQuiz = quizId && quizId.trim() !== "";
 
       const requestConfig = {
@@ -44,39 +74,37 @@ export default function DownloadQuizButton({
       };
 
       const client = isRealQuiz ? api : publicApi;
+      const response = await client.get("/download-quiz", requestConfig);
 
-      client
-        .get("/download-quiz", requestConfig)
-        .then((response) => {
-          const url = window.URL.createObjectURL(new Blob([response.data]));
-          const link = document.createElement("a");
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
 
-          link.href = url;
-          link.setAttribute(
-            "download",
-            `${question_type}-quiz.${selectedFormat}`,
-          );
+      link.href = url;
+      link.setAttribute("download", `${question_type}-quiz.${selectedFormat}`);
 
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setShowOptions(false);
+    } catch (error: any) {
+      const status = error?.response?.status;
+      const detail = error?.response?.data?.detail;
 
-          subscriber.next();
-          subscriber.complete();
-          setShowOptions(false);
-        })
-        .catch((error) => {
-          console.error("Download failed:", error);
-          subscriber.error(error);
-        })
-        .finally(() => {
-          setIsDownloading(false);
-        });
-    });
-
-    observable.subscribe({
-      error: (error) => console.error("Observable error:", error),
-    });
+      if (status === 401) {
+        toast.error("Authentication required. Please sign in or sign up.");
+        setShowSignUpModal(true);
+      } else if (status === 403 && detail === "Email not verified") {
+        toast.error("Please verify your email before downloading quizzes.");
+        if (typeof window !== "undefined") {
+          window.location.assign("/auth/verify-email-notice");
+        }
+      } else {
+        toast.error("Download failed. Please try again.");
+        console.error("Download failed:", error);
+      }
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -120,6 +148,17 @@ export default function DownloadQuizButton({
           </button>
         </div>
       )}
+
+      <SignUpModal
+        isOpen={showSignUpModal}
+        onClose={() => setShowSignUpModal(false)}
+        switchToSignIn={switchToSignIn}
+      />
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={() => setShowSignInModal(false)}
+        switchToSignUp={switchToSignUp}
+      />
     </div>
   );
 }
