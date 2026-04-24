@@ -70,7 +70,6 @@ def download_mock_quiz(format: str, question_type: str, num_question: int) -> St
 async def download_quiz_by_id(
     quiz_id: str,
     file_format: str,
-    user_id: str
 ) -> StreamingResponse:
     """
     Download an existing quiz by its MongoDB ObjectId.

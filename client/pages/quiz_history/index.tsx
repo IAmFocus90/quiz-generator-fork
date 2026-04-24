@@ -11,7 +11,7 @@ const transformQuizHistory = (quizHistory: any[]) => {
   if (!quizHistory || quizHistory.length === 0) return [];
 
   return quizHistory.map((quizItem: any, quizIndex: number) => {
-    const quizHistoryId = quizItem.id || quizItem._id || `${quizIndex}`;
+    const quizHistoryId = quizItem.id || `${quizIndex}`;
     const createdAt = quizItem.created_at
       ? new Date(quizItem.created_at).toLocaleString()
       : "Unknown date";

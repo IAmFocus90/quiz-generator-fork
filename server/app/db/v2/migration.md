@@ -15,7 +15,7 @@ The intended end state is:
 - V2 collections are the authoritative store for supported quiz flows
 - historical legacy data is backfilled into V2
 - live reads and writes operate through V2
-- legacy collections remain only for stabilization, rollback, audit, or archival until explicitly deprecated and removed
+- legacy collections remain only for audit, archival, or deliberate deprecation/removal work once the V2 path is fully settled
 
 ## V2 Collections
 
@@ -65,8 +65,7 @@ Important note:
 Completed:
 
 - saved quiz, history, folder, and share reads were cut over to V2-backed read services
-- read behavior was validated through compare-mode and then moved to `v2_only`
-- response compatibility was preserved while the frontend transition was still underway
+- read behavior was validated during migration rollout and then simplified to V2-only service paths
 - folder ordering and user-facing title parity were aligned in V2
 
 ### Stage 5: Final V2 Cutover
@@ -84,10 +83,6 @@ Completed:
 Current config defaults:
 
 - `QUIZ_V2_WRITE_MODE = "v2_only"`
-- `QUIZ_V2_SAVED_READ_MODE = "v2_only"`
-- `QUIZ_V2_HISTORY_READ_MODE = "v2_only"`
-- `QUIZ_V2_FOLDER_READ_MODE = "v2_only"`
-- `QUIZ_V2_SHARE_READ_MODE = "v2_only"`
 
 Current authoritative behavior:
 
@@ -116,35 +111,7 @@ The current implementation has achieved the main migration guarantees:
 
 The following items still remain if the goal is a fully completed migration and legacy deprecation process.
 
-### 1. Remove or Retire Migration Compatibility Branches
-
-The codebase still contains migration-era compatibility logic in some services, including:
-
-- legacy-read branches
-- compare-mode branches
-- legacy-id compatibility shaping
-
-These should be either:
-
-- removed after the stabilization window, or
-- explicitly retained as rollback-only logic with clear ownership and expiry
-
-### 2. Finalize Public ID Contract
-
-The migrated surfaces now expose V2 ids and canonical quiz ids, but some payloads still carry compatibility fields such as:
-
-- `_id`
-- `legacy_id`
-- `legacy_quiz_id`
-
-A final migration decision is still needed:
-
-- which of these fields remain intentionally supported
-- which are transitional and should be removed after stabilization
-
-This is migration-scoped because it determines when legacy-id support truly ends.
-
-### 3. Decide the Fate of Remaining Legacy-First Non-Core Routes
+### 1. Decide the Fate of Remaining Legacy-First Non-Core Routes
 
 Some non-core or test-oriented legacy CRUD paths still exist in the codebase, especially around manual/test quiz routes.
 
@@ -156,32 +123,30 @@ Migration follow-up is needed to decide whether they should:
 
 If they remain, they should not create ambiguity about whether legacy is still part of the normal production path.
 
-### 4. Add Final Legacy-Usage Guardrails
+### 2. Add Final Legacy-Usage Guardrails
 
-After V2-only stabilization, the migration should add stronger guarantees that unsupported legacy access does not silently continue.
+The main migrated paths are V2-only now, but the migration can still add stronger guarantees that unsupported legacy access does not silently continue.
 
 Examples:
 
 - warning/error logs if deprecated legacy repositories are invoked
 - assertions or tests for unsupported legacy write usage
-- startup validation for invalid migration flag combinations
+- startup validation for invalid migration flag combinations where migration-mode settings still exist
 
-### 5. Complete Legacy Deprecation Plan
+### 3. Complete Legacy Deprecation Plan
 
 The migration is not fully complete until legacy collections have a defined post-cutover lifecycle.
 
 A migration completion plan is still needed for:
 
-- stabilization window length
-- rollback expectations
 - legacy collection archival policy
 - final legacy collection removal plan
 
-### 6. Optional Index Hardening After Stabilization
+### 4. Optional Index Hardening After Duplicate Cleanup
 
 Code-level dedupe and merge protections are in place for several legacy-reference scenarios.
 
-After production stabilization and duplicate cleanup are confirmed, the migration can consider stronger DB-level enforcement for legacy reference uniqueness where appropriate.
+After duplicate cleanup is confirmed in target environments, the migration can consider stronger DB-level enforcement for legacy reference uniqueness where appropriate.
 
 This should only happen after verifying there is no conflicting legacy residue in existing environments.
 
@@ -200,11 +165,11 @@ To finish the migration cleanly, the next migration-scoped sequence should be:
 
 1. stabilize V2-only operation in target environments
 2. monitor for unexpected legacy-path usage
-3. decide which compatibility fields remain public and which are removed
-4. retire compare/legacy branches that are no longer needed
-5. document legacy archival/removal plan
+3. quarantine or migrate the remaining non-core legacy-first routes
+4. document legacy archival/removal plan
+5. add stronger guardrails for deprecated legacy access
 6. execute final legacy deprecation/removal in a follow-up cleanup stage
 
 ## Summary
 
-The migration has reached the point where V2 is operationally authoritative for the supported quiz-library flows. The remaining work is no longer about proving the V2 model; it is about finishing the deprecation and cleanup process so that legacy support becomes explicit, limited, and eventually removable.
+The migration has reached the point where V2 is operationally authoritative for the supported quiz-library flows. The remaining work is no longer about proving the V2 model; it is about finishing legacy deprecation deliberately so that the remaining legacy assets are explicit, limited, and eventually removable.

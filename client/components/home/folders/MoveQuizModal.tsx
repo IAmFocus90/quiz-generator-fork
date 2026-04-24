@@ -9,8 +9,8 @@ import {
 } from "../../../lib/functions/folders";
 import { useAuth } from "../../../contexts/authContext";
 
-const getFolderId = (folder: any) => folder?.id || folder?._id || "";
-const getFolderItemId = (quiz: any) => quiz?.id || quiz?._id || "";
+const getFolderId = (folder: any) => folder?.id || "";
+const getFolderItemId = (quiz: any) => quiz?.id || "";
 
 interface MoveQuizModalProps {
   isOpen: boolean;

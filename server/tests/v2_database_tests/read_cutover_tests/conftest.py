@@ -12,7 +12,6 @@ os.environ.setdefault("share_url", "http://localhost")
 os.environ.setdefault("db_name", "test_db")
 os.environ.setdefault("mongo_url", "mongodb://localhost:27017")
 
-from server.app.db.core.config import settings
 from server.app.db.services.quiz_user_library_read_service import QuizUserLibraryReadService
 from server.app.db.services.shared_quiz_read_service import SharedQuizReadService
 from server.app.db.v2.repositories.quiz_repository import QuizV2Repository
@@ -69,11 +68,3 @@ def shared_read_service_factory(read_cutover_db):
         )
 
     return factory
-
-
-@pytest.fixture(scope="function", autouse=True)
-def reset_read_modes(monkeypatch):
-    monkeypatch.setattr(settings, "QUIZ_V2_SAVED_READ_MODE", "legacy_only")
-    monkeypatch.setattr(settings, "QUIZ_V2_HISTORY_READ_MODE", "legacy_only")
-    monkeypatch.setattr(settings, "QUIZ_V2_FOLDER_READ_MODE", "legacy_only")
-    monkeypatch.setattr(settings, "QUIZ_V2_SHARE_READ_MODE", "legacy_only")

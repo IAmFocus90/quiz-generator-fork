@@ -28,7 +28,6 @@ const QuizDisplayPage: React.FC = () => {
   const difficultyLevel = searchParams.get("difficultyLevel") || "easy";
   const audienceType = searchParams.get("audienceType") || "students";
   const customInstruction = searchParams.get("customInstruction") || "";
-  const userId = searchParams.get("userId") || "defaultUserId"; // ✅ dummy user until auth works
   const token = searchParams.get("token") || "";
 
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
@@ -44,16 +43,6 @@ const QuizDisplayPage: React.FC = () => {
     hasFetchedRef.current = true;
 
     const fetchQuizQuestions = async () => {
-      const basePayload = {
-        question_type: questionType,
-        num_questions: numQuestions,
-        profession: profession,
-        difficulty_level: difficultyLevel,
-        audience_type: audienceType,
-        custom_instruction: customInstruction,
-        token: token,
-      };
-
       try {
         setIsLoading(true);
         let questions: any[] = [];
@@ -305,7 +294,6 @@ const QuizDisplayPage: React.FC = () => {
               <SaveQuizButton quizData={quizQuestions} quizId={quizId} />
               <DownloadQuizButton
                 quizId={quizId}
-                userId={userId}
                 question_type={questionType}
                 numQuestion={numQuestions}
               />

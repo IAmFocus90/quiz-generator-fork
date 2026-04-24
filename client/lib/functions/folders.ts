@@ -1,8 +1,7 @@
 import { api } from "./auth";
 
 const API_BASE = `/api/folders`;
-const getResourceId = (resource: any) =>
-  resource?.id || resource?._id || resource?.quiz_id;
+const getResourceId = (resource: any) => resource?.id || resource?.quiz_id;
 
 export const getUserFolders = async () => {
   const res = await api.get(`${API_BASE}/`);

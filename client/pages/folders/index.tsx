@@ -20,15 +20,13 @@ import {
 
 interface Folder {
   id: string;
-  _id?: string;
-  legacy_id?: string;
   name: string;
   created_at: string;
   quizzes: any[];
   quiz_count?: number;
 }
 
-const getFolderId = (folder: Partial<Folder>) => folder.id || folder._id || "";
+const getFolderId = (folder: Partial<Folder>) => folder.id || "";
 
 const FoldersPage = () => {
   const router = useRouter();

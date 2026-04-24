@@ -7,21 +7,17 @@ import OrganizeModal from "./OrganizeModal";
 interface FolderViewProps {
   folder: {
     id?: string;
-    _id?: string;
     name: string;
     quizzes: {
       id?: string;
-      _id?: string;
       title: string;
       category: string;
     }[];
   };
 }
 
-const getFolderId = (folder: { id?: string; _id?: string }) =>
-  folder.id || folder._id || "";
-const getFolderItemId = (quiz: { id?: string; _id?: string }) =>
-  quiz.id || quiz._id || "";
+const getFolderId = (folder: { id?: string }) => folder.id || "";
+const getFolderItemId = (quiz: { id?: string }) => quiz.id || "";
 
 const FolderView: React.FC<FolderViewProps> = ({ folder }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<any | null>(null);
