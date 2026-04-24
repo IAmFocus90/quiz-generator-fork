@@ -202,9 +202,12 @@ class QuizUserLibraryReadService:
                 continue
             payload.append(
                 {
+                    "id": str(reference.id),
+                    "legacy_id": reference.legacy_history_id,
                     "_id": reference.legacy_history_id or str(reference.id),
                     "user_id": reference.user_id,
-                    "quiz_id": quiz.legacy_quiz_id,
+                    "quiz_id": str(quiz.id),
+                    "legacy_quiz_id": quiz.legacy_quiz_id,
                     "canonical_quiz_id": str(quiz.id),
                     "quiz_name": quiz.title,
                     "question_type": quiz.quiz_type.value,
@@ -255,9 +258,12 @@ class QuizUserLibraryReadService:
 
     def _build_saved_payload(self, reference: SavedQuizDocumentV2, quiz: QuizDocumentV2) -> dict[str, Any]:
         return {
+            "id": str(reference.id),
+            "legacy_id": reference.legacy_saved_quiz_id,
             "_id": reference.legacy_saved_quiz_id or str(reference.id),
             "user_id": reference.user_id,
-            "quiz_id": quiz.legacy_quiz_id,
+            "quiz_id": str(quiz.id),
+            "legacy_quiz_id": quiz.legacy_quiz_id,
             "canonical_quiz_id": str(quiz.id),
             "title": reference.display_title or quiz.title,
             "question_type": quiz.quiz_type.value,
@@ -279,7 +285,7 @@ class QuizUserLibraryReadService:
         return payload
 
     async def _v2_get_saved_quiz(self, saved_quiz_id: str, user_id: str) -> Optional[dict[str, Any]]:
-        reference = await self.reference_repository.get_saved_quiz_by_legacy_id(saved_quiz_id, user_id=user_id)
+        reference = await self.reference_repository.get_saved_quiz_by_public_id(saved_quiz_id, user_id=user_id)
         if reference is None:
             return None
         quiz = await self.quiz_repository.find_by_id(reference.quiz_id)
@@ -355,8 +361,11 @@ class QuizUserLibraryReadService:
     ) -> dict[str, Any]:
         questions = self._serialize_saved_questions(quiz)
         return {
+            "id": str(item.id),
+            "legacy_id": item.legacy_folder_item_id,
             "_id": item.legacy_folder_item_id or str(item.id),
-            "quiz_id": quiz.legacy_quiz_id,
+            "quiz_id": str(quiz.id),
+            "legacy_quiz_id": quiz.legacy_quiz_id,
             "canonical_quiz_id": str(quiz.id),
             "title": item.display_title or quiz.title,
             "question_type": quiz.quiz_type.value,
@@ -366,7 +375,8 @@ class QuizUserLibraryReadService:
             "_position": item.position,
             "quiz_data": {
                 "_id": item.legacy_folder_item_id or str(item.id),
-                "quiz_id": quiz.legacy_quiz_id,
+                "quiz_id": str(quiz.id),
+                "legacy_quiz_id": quiz.legacy_quiz_id,
                 "canonical_quiz_id": str(quiz.id),
                 "title": item.display_title or quiz.title,
                 "question_type": quiz.quiz_type.value,
@@ -383,6 +393,8 @@ class QuizUserLibraryReadService:
             items = await self.reference_repository.list_folder_items_for_folder(str(folder.id))
             folder_payloads.append(
                 {
+                    "id": str(folder.id),
+                    "legacy_id": folder.legacy_folder_id,
                     "_id": folder.legacy_folder_id or str(folder.id),
                     "user_id": folder.user_id,
                     "name": folder.name,
@@ -394,7 +406,7 @@ class QuizUserLibraryReadService:
         return folder_payloads
 
     async def _v2_get_folder(self, folder_id: str) -> tuple[Optional[dict[str, Any]], Optional[str]]:
-        folder = await self.reference_repository.get_folder_by_legacy_id(folder_id)
+        folder = await self.reference_repository.get_folder_by_public_id(folder_id)
         if folder is None:
             return None, None
         items = await self.reference_repository.list_folder_items_for_folder(str(folder.id))
@@ -410,6 +422,8 @@ class QuizUserLibraryReadService:
             payload_item.pop("_position", None)
         return (
             {
+                "id": str(folder.id),
+                "legacy_id": folder.legacy_folder_id,
                 "_id": folder.legacy_folder_id or str(folder.id),
                 "user_id": folder.user_id,
                 "name": folder.name,

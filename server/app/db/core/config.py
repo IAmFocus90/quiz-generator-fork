@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     share_url: str
     db_name: str
     mongo_url: str
-    QUIZ_V2_WRITE_MODE: Literal["legacy_only", "dual_write"] = "dual_write"
+    QUIZ_V2_WRITE_MODE: Literal["legacy_only", "dual_write", "v2_only"] = "v2_only"
     QUIZ_V2_SAVED_READ_MODE: Literal["legacy_only", "compare", "v2_only"] = "v2_only"
     QUIZ_V2_HISTORY_READ_MODE: Literal["legacy_only", "compare", "v2_only"] = "v2_only"
     QUIZ_V2_FOLDER_READ_MODE: Literal["legacy_only", "compare", "v2_only"] = "v2_only"

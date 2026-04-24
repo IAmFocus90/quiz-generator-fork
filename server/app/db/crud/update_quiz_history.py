@@ -12,6 +12,11 @@ dual_write_service = QuizDualWriteService()
 
 async def update_quiz_history(quiz_data: Dict[str, Any]):
     quiz_data["created_at"] = datetime.utcnow()
+    if dual_write_service.v2_only_enabled:
+        history_reference = await dual_write_service.create_quiz_history_v2(quiz_data)
+        logger.info("Quiz history saved for user %s: %s", quiz_data.get("user_id"), str(history_reference.id))
+        return str(history_reference.id)
+
     result = await quiz_history_collection.insert_one(quiz_data)
 
     try:

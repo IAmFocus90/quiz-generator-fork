@@ -11,8 +11,10 @@ from ...db.core.connection import (
     get_quizzes_collection,
     get_ai_generated_quizzes_collection,
     get_saved_quizzes_collection,
+    get_quizzes_v2_collection,
 )
 from ...db.crud.quiz_crud import list_quizzes
+from ...db.core.config import settings
 from ...db.services.shared_quiz_read_service import SharedQuizReadService
 from ...db.schemas.quiz_schemas import QuizSchema
 from .share_schemas import (
@@ -97,8 +99,27 @@ async def resolve_shared_quiz(quiz_id: str) -> Optional[Dict[str, Any]]:
 
 
 @router.get("/get-quiz-id", response_model=QuizSchema)
-async def get_random_quiz_id(quizzes_collection: AsyncIOMotorCollection = Depends(get_quizzes_collection)):
+async def get_random_quiz_id(
+    quizzes_collection: AsyncIOMotorCollection = Depends(get_quizzes_collection),
+    quizzes_v2_collection: AsyncIOMotorCollection = Depends(get_quizzes_v2_collection),
+):
     try:
+        if settings.QUIZ_V2_SHARE_READ_MODE == "v2_only":
+            quiz_list = await quizzes_v2_collection.find({"status": {"$ne": "deleted"}}).to_list(length=50)
+            if not quiz_list:
+                raise HTTPException(detail="Unable to fetch from database!", status_code=404)
+            selected_quiz = random.choice(quiz_list)
+            return QuizSchema(
+                id=str(selected_quiz["_id"]),
+                title=selected_quiz["title"],
+                description=selected_quiz.get("description"),
+                quiz_type=selected_quiz["quiz_type"],
+                owner_id=selected_quiz.get("owner_user_id"),
+                canonical_quiz_id=str(selected_quiz["_id"]),
+                created_at=selected_quiz["created_at"],
+                updated_at=selected_quiz["updated_at"],
+                questions=selected_quiz["questions"],
+            )
         quiz_List = await list_quizzes(quizzes_collection)
         selected_quiz = random.choice(quiz_List)
         return selected_quiz

@@ -20,7 +20,8 @@ import { TokenService } from "../../lib/functions/tokenService";
 
 const QuizDisplayPage: React.FC = () => {
   const searchParams = useSearchParams();
-  const savedQuizId = searchParams.get("id");
+  const savedQuizId = searchParams.get("savedId") || searchParams.get("id");
+  const canonicalQuizId = searchParams.get("quizId") || "";
   const questionType = searchParams.get("questionType") || "multichoice";
   const numQuestions = Number(searchParams.get("numQuestions")) || 1;
   const profession = searchParams.get("profession") || "general knowledge";
@@ -34,7 +35,7 @@ const QuizDisplayPage: React.FC = () => {
   const [userAnswers, setUserAnswers] = useState<(string | number)[]>([]);
   const [isQuizChecked, setIsQuizChecked] = useState<boolean>(false);
   const [quizReport, setQuizReport] = useState<any[]>([]);
-  const [quizId, setQuizId] = useState("");
+  const [quizId, setQuizId] = useState(canonicalQuizId);
   const [isLoading, setIsLoading] = useState(true);
   const hasFetchedRef = useRef(false); // ✅ Prevent double fetch
 
@@ -70,6 +71,8 @@ const QuizDisplayPage: React.FC = () => {
               : [];
 
           if (storedQuestions.length > 0) {
+            const resolvedStoredQuizId =
+              parsedQuiz?.quiz_id || canonicalQuizId || "";
             const normalizedQuestions = storedQuestions.map((q: any) => ({
               ...q,
               answer: q.answer || q.correct_answer,
@@ -77,6 +80,9 @@ const QuizDisplayPage: React.FC = () => {
             }));
             setQuizQuestions(normalizedQuestions);
             setUserAnswers(Array(normalizedQuestions.length).fill(""));
+            if (resolvedStoredQuizId) {
+              setQuizId(resolvedStoredQuizId);
+            }
             toast.success(`Loaded saved quiz: ${parsedQuiz.title}`);
             localStorage.removeItem("saved_quiz_view");
             setIsLoading(false);
@@ -97,8 +103,9 @@ const QuizDisplayPage: React.FC = () => {
             answer: q.answer || q.correct_answer,
             question_type: q.question_type || questionType,
           }));
-          setQuizId(savedQuizId);
-          resolvedQuizId = savedQuizId;
+          const resolvedSavedQuizId = data.quiz_id || canonicalQuizId || "";
+          setQuizId(resolvedSavedQuizId);
+          resolvedQuizId = resolvedSavedQuizId;
           toast.success("Loaded saved quiz successfully!");
         } else {
           // ✅ Step 3: Fallback — generate a new quiz
@@ -175,12 +182,14 @@ const QuizDisplayPage: React.FC = () => {
     fetchQuizQuestions();
   }, [
     savedQuizId,
+    canonicalQuizId,
     questionType,
     numQuestions,
     profession,
     difficultyLevel,
     audienceType,
     customInstruction,
+    token,
   ]);
 
   const handleAnswerChange = (index: number, answer: string | number) => {

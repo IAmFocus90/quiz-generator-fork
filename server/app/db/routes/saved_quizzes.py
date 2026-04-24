@@ -43,7 +43,7 @@ async def create_saved_quiz(
         print("Received quiz payload:", quiz.dict())
 
 
-        quiz_id = await save_quiz(
+        saved_quiz_id = await save_quiz(
 
             user_id=quiz.user_id,
 
@@ -56,7 +56,12 @@ async def create_saved_quiz(
 
         )
 
-        return {"message": "Quiz saved successfully", "quiz_id": quiz_id}
+        return {
+            "message": "Quiz saved successfully",
+            "id": saved_quiz_id,
+            "saved_quiz_id": saved_quiz_id,
+            "quiz_id": saved_quiz_id,
+        }
 
 
     except Exception as e:

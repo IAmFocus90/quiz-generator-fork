@@ -106,7 +106,9 @@ class SharedQuizReadService:
     def _normalize_v2_quiz(quiz_doc: QuizDocumentV2, requested_quiz_id: str) -> dict[str, Any]:
         topic = quiz_doc.title or "General Knowledge"
         return {
-            "id": requested_quiz_id,
+            "id": str(quiz_doc.id),
+            "legacy_quiz_id": quiz_doc.legacy_quiz_id,
+            "requested_quiz_id": requested_quiz_id,
             "title": quiz_doc.title,
             "description": quiz_doc.description or build_default_description(topic),
             "quiz_type": quiz_doc.quiz_type.value,

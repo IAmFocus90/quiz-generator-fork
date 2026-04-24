@@ -59,7 +59,11 @@ async def test_stage4_history_v2_only_reads_legacy_compatible_payload(
     payload = await service.get_quiz_history_for_user("user-1")
 
     assert len(payload) == 1
+    assert payload[0]["id"] is not None
+    assert payload[0]["legacy_id"] == str(history_id)
     assert payload[0]["_id"] == str(history_id)
+    assert payload[0]["quiz_id"] == str(quiz_id)
+    assert payload[0]["legacy_quiz_id"] == "legacy-ai-1"
     assert payload[0]["question_type"] == "multichoice"
     assert payload[0]["questions"][0]["answer"] == "Keys"
     assert payload[0]["questions"][0]["question_type"] == "multichoice"
@@ -187,8 +191,12 @@ async def test_stage4_saved_v2_only_preserves_legacy_saved_id_and_restores_answe
     payload = await service.get_saved_quiz_by_id(str(saved_id), "user-2")
 
     assert payload is not None
+    assert payload["id"] is not None
+    assert payload["legacy_id"] == str(saved_id)
     assert payload["_id"] == str(saved_id)
     assert payload["title"] == "Russia"
+    assert payload["quiz_id"] == str(quiz_id)
+    assert payload["legacy_quiz_id"] == "legacy-russia"
     assert payload["canonical_quiz_id"] == str(quiz_id)
     assert payload["questions"][0]["correct_answer"] == "B) Moscow"
 
@@ -286,8 +294,13 @@ async def test_stage4_folder_v2_only_preserves_folder_and_item_legacy_ids_and_po
     payload = await service.get_folder_by_id("legacy-folder-1", "user-folder")
 
     assert payload is not None
+    assert payload["id"] == str(folder_v2_id)
+    assert payload["legacy_id"] == "legacy-folder-1"
     assert payload["_id"] == "legacy-folder-1"
     assert [item["_id"] for item in payload["quizzes"]] == ["item-1", "item-2"]
+    assert all(item.get("id") for item in payload["quizzes"])
+    assert payload["quizzes"][0]["quiz_id"] == str(quiz_two_id)
+    assert payload["quizzes"][0]["legacy_quiz_id"] == "legacy-quiz-1"
     assert payload["quizzes"][0]["title"] == "Russia"
     assert payload["quizzes"][1]["title"] == "USA Military"
 
@@ -338,6 +351,7 @@ async def test_stage4_shared_v2_only_resolves_saved_quiz_legacy_id(
     payload = await service.resolve_shared_quiz(str(saved_id))
 
     assert payload is not None
-    assert payload["id"] == str(saved_id)
+    assert payload["id"] == str(quiz_id)
+    assert payload["legacy_quiz_id"] == "legacy-shared-ai"
     assert payload["title"] == "Shared Quiz"
     assert payload["questions"][0]["correct_answer"] == "B"

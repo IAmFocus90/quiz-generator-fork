@@ -41,6 +41,16 @@ async def save_quiz(
                 if not getattr(question, "question_type", None):
                     question.question_type = question_type
                 parsed_questions.append(question)
+        if dual_write_service.v2_only_enabled:
+            saved_reference = await dual_write_service.create_saved_quiz_v2(
+                user_id=user_id,
+                title=title,
+                question_type=question_type,
+                questions=parsed_questions,
+                quiz_id=quiz_id,
+            )
+            return str(saved_reference.id)
+
         quiz = SavedQuizModel(
             user_id=user_id,
             quiz_id=quiz_id or str(ObjectId()),
@@ -84,6 +94,12 @@ async def get_saved_quizzes(user_id: str):
 
 
 async def delete_saved_quiz(quiz_id: str, user_id: str):
+    if dual_write_service.v2_only_enabled:
+        return await dual_write_service.delete_saved_quiz_v2(
+            saved_quiz_id=quiz_id,
+            user_id=user_id,
+        )
+
     legacy_quiz = await collection.find_one({"_id": ObjectId(quiz_id), "user_id": user_id})
     result = await collection.delete_one({"_id": ObjectId(quiz_id), "user_id": user_id})
     if result.deleted_count and legacy_quiz and legacy_quiz.get("canonical_quiz_id"):
