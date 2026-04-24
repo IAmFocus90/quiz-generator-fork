@@ -602,6 +602,75 @@ async def test_stage5_saved_quiz_v2_only_writes_only_v2_records(
 
 
 @pytest.mark.asyncio
+async def test_stage5_saved_quiz_delete_soft_deletes_and_live_save_revives(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(saved_quiz_crud, "collection", dual_write_db["saved_quizzes"])
+    monkeypatch.setattr(saved_quiz_crud, "dual_write_service", service)
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "v2_only")
+
+    await dual_write_db["ai_generated_quizzes"].insert_one(
+        {
+            "_id": ObjectId("690000000000000000000003"),
+            "user_id": "user-soft-save",
+            "profession": "Operating Systems",
+            "question_type": "multichoice",
+            "questions": [
+                {
+                    "question": "What does CPU stand for?",
+                    "options": ["Central Processing Unit", "Core Process Utility"],
+                    "answer": "Central Processing Unit",
+                    "question_type": "multichoice",
+                }
+            ],
+        }
+    )
+
+    saved_reference = await saved_quiz_crud.save_quiz(
+        user_id="user-soft-save",
+        title="Operating Systems",
+        question_type="multichoice",
+        quiz_id="690000000000000000000003",
+        questions=[
+            {
+                "question": "What does CPU stand for?",
+                "options": ["Central Processing Unit", "Core Process Utility"],
+                "question_type": "multichoice",
+            }
+        ],
+    )
+
+    deleted = await saved_quiz_crud.delete_saved_quiz(str(saved_reference.id), "user-soft-save")
+    assert deleted is True
+
+    stored_deleted = await dual_write_db["saved_quizzes_v2"].find_one({"_id": saved_reference.id})
+    assert stored_deleted is not None
+    assert stored_deleted["deleted_at"] is not None
+
+    revived = await saved_quiz_crud.save_quiz(
+        user_id="user-soft-save",
+        title="Operating Systems Restored",
+        question_type="multichoice",
+        quiz_id="690000000000000000000003",
+        questions=[
+            {
+                "question": "What does CPU stand for?",
+                "options": ["Central Processing Unit", "Core Process Utility"],
+                "question_type": "multichoice",
+            }
+        ],
+    )
+
+    assert str(revived.id) == str(saved_reference.id)
+    stored_revived = await dual_write_db["saved_quizzes_v2"].find_one({"_id": saved_reference.id})
+    assert stored_revived["deleted_at"] is None
+    assert stored_revived["display_title"] == "Operating Systems Restored"
+
+
+@pytest.mark.asyncio
 async def test_stage5_quiz_history_v2_only_writes_only_v2_records(
     dual_write_db,
     dual_write_service_factory,
@@ -716,8 +785,34 @@ async def test_stage5_folder_v2_only_mutations_operate_without_legacy_rows(
         user_id="user-folder-v2",
     )
     assert removed is True
-    assert await dual_write_db["folder_items_v2"].count_documents({}) == 0
+    deleted_item = await dual_write_db["folder_items_v2"].find_one({"_id": folder_item.id})
+    assert deleted_item is not None
+    assert deleted_item["deleted_at"] is not None
     assert await dual_write_db["folders"].count_documents({}) == 0
+
+
+@pytest.mark.asyncio
+async def test_stage5_folder_delete_soft_deletes_and_recreate_revives(
+    dual_write_db,
+    dual_write_service_factory,
+    monkeypatch,
+):
+    service = dual_write_service_factory()
+    monkeypatch.setattr(settings, "QUIZ_V2_WRITE_MODE", "v2_only")
+
+    folder = await service.create_folder_v2(user_id="user-folder-soft", name="Networking")
+    deleted = await service.delete_folder_v2(folder_id=str(folder.id), user_id="user-folder-soft")
+
+    assert deleted is True
+    stored_folder = await dual_write_db["folders_v2"].find_one({"_id": folder.id})
+    assert stored_folder is not None
+    assert stored_folder["deleted_at"] is not None
+
+    revived = await service.create_folder_v2(user_id="user-folder-soft", name="Networking")
+
+    assert str(revived.id) == str(folder.id)
+    revived_folder = await dual_write_db["folders_v2"].find_one({"_id": folder.id})
+    assert revived_folder["deleted_at"] is None
 
 
 @pytest.mark.asyncio

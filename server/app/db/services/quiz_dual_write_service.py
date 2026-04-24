@@ -291,7 +291,8 @@ class QuizDualWriteService:
                 quiz_id=str(canonical_quiz.id),
                 display_title=title or canonical_quiz.title,
                 saved_at=saved_at or datetime.utcnow(),
-            )
+            ),
+            revive_deleted=True,
         )
         self._log(
             "quiz_v2_only_write_served",
@@ -423,6 +424,22 @@ class QuizDualWriteService:
             canonical_quiz_id=str(canonical_quiz.id),
         )
         return reference
+
+    async def delete_quiz_history_v2(self, *, history_id: str, user_id: str) -> bool:
+        deleted_count = await self.reference_repository.soft_delete_quiz_history_by_id(
+            history_id,
+            user_id=user_id,
+        )
+        deleted = deleted_count > 0
+        self._log(
+            "quiz_v2_only_write_served",
+            operation="quiz_history_delete",
+            write_mode=self.write_mode,
+            user_id=user_id,
+            history_id=history_id,
+            deleted=deleted,
+        )
+        return deleted
 
     async def mirror_folder_create(self, legacy_folder_doc: dict):
         return await self._run_fail_open(
@@ -613,7 +630,8 @@ class QuizDualWriteService:
                 position=len(existing_items),
                 display_title=saved_reference.display_title or canonical_quiz.title,
                 created_at=datetime.utcnow(),
-            )
+            ),
+            revive_deleted=True,
         )
         self._log(
             "quiz_v2_only_write_served",

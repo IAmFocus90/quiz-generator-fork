@@ -20,6 +20,7 @@ class FolderDocumentV2(BaseModel):
     legacy_folder_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -47,6 +48,7 @@ class FolderItemDocumentV2(BaseModel):
     display_title: Optional[str] = None
     legacy_folder_item_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -70,6 +72,7 @@ class SavedQuizDocumentV2(BaseModel):
     display_title: Optional[str] = None
     legacy_saved_quiz_id: Optional[str] = None
     saved_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -96,6 +99,7 @@ class QuizHistoryDocumentV2(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     legacy_history_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    deleted_at: Optional[datetime] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
