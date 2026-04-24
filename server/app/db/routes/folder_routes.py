@@ -36,6 +36,7 @@ from ....app.db.crud.folder_crud import (
 from ....app.db.core.connection import get_saved_quizzes_collection
 
 from ....app.db.models.folder_model import FolderCreate, BulkDeleteFoldersRequest, BulkRemoveRequest
+from ....app.db.services.quiz_user_library_read_service import QuizUserLibraryReadService
 
 from ....app.dependancies import get_current_user
 
@@ -44,6 +45,7 @@ router = APIRouter(tags=["Folders"])
 
 
 saved_quizzes_collection = get_saved_quizzes_collection()
+read_service = QuizUserLibraryReadService()
 
 
 
@@ -87,7 +89,7 @@ async def create_new_folder(folder: FolderCreate, user = Depends(get_current_use
 
 async def get_folders_for_user(user = Depends(get_current_user)):
 
-    folders = await get_user_folders(user.id)
+    folders = await read_service.get_user_folders(user.id)
 
     return folders
 
@@ -96,16 +98,13 @@ async def get_folders_for_user(user = Depends(get_current_user)):
 @router.get("/view/{folder_id}")
 
 async def get_folder_by_id_route(folder_id: str, user = Depends(get_current_user)):
-
-    folder = await get_folder_by_id(folder_id)
+    try:
+        folder = await read_service.get_folder_by_id(folder_id, user.id)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Unauthorized access to folder")
 
     if not folder:
-
         raise HTTPException(status_code=404, detail="Folder not found")
-
-    if folder["user_id"] != user.id:
-
-        raise HTTPException(status_code=403, detail="Unauthorized access to folder")
 
     return folder
 

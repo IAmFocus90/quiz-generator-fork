@@ -13,6 +13,7 @@ from ...db.core.connection import (
     get_saved_quizzes_collection,
 )
 from ...db.crud.quiz_crud import list_quizzes
+from ...db.services.shared_quiz_read_service import SharedQuizReadService
 from ...db.schemas.quiz_schemas import QuizSchema
 from .share_schemas import (
     ShareQuizResponse,
@@ -34,6 +35,7 @@ if not share_url:
 
 
 router = APIRouter()
+shared_quiz_read_service = SharedQuizReadService()
 
 def build_default_description(topic: str) -> str:
     return f"A quiz to test your knowledge on {topic}"
@@ -121,7 +123,7 @@ async def get_share_link(quiz_id: str):
 @router.get("/shared-quiz/{quiz_id}", response_model=SharedQuizDataResponse)
 async def get_shared_quiz_data(quiz_id: str):
     try:
-        shared_quiz = await resolve_shared_quiz(quiz_id)
+        shared_quiz = await shared_quiz_read_service.resolve_shared_quiz(quiz_id)
         if not shared_quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
         return shared_quiz
@@ -141,7 +143,7 @@ async def share_quiz_via_email(
     email_svc: EmailService = Depends(get_email_service),
 ):
     try:
-        shared_quiz = await resolve_shared_quiz(query.quiz_id)
+        shared_quiz = await shared_quiz_read_service.resolve_shared_quiz(query.quiz_id)
         if not shared_quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
         
@@ -167,4 +169,3 @@ async def share_quiz_via_email(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send email. Please try again later."
         )
-

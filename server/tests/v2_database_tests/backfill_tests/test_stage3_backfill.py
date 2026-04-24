@@ -103,10 +103,13 @@ async def test_stage3_backfill_reuses_ai_origin_for_saved_history_and_folder(
 
     assert canonical is not None
     assert saved_v2["quiz_id"] == str(canonical["_id"])
+    assert saved_v2["display_title"] == "Geography"
     assert history_v2["quiz_id"] == str(canonical["_id"])
     assert history_v2["metadata"]["source"] == "ai"
     assert history_v2["metadata"]["topic"] == "Geography"
     assert folder_item_v2["quiz_id"] == str(canonical["_id"])
+    assert folder_item_v2["display_title"] == "Geography"
+    assert folder_item_v2["position"] == 0
 
 
 @pytest.mark.asyncio
@@ -377,6 +380,7 @@ async def test_stage3_folder_backfill_merges_duplicate_items_for_same_canonical_
     assert summary.conflicts == 0
     assert len(folder_items) == 1
     assert folder_items[0]["legacy_folder_item_id"] == "folder-item-1"
+    assert folder_items[0]["position"] == 0
 
 
 @pytest.mark.asyncio

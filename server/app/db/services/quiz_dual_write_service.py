@@ -236,6 +236,7 @@ class QuizDualWriteService:
                 SavedQuizDocumentV2(
                     user_id=legacy_saved_doc["user_id"],
                     quiz_id=str(canonical_quiz.id),
+                    display_title=legacy_saved_doc.get("title") or canonical_quiz.title,
                     legacy_saved_quiz_id=str(legacy_saved_doc["_id"]),
                     saved_at=legacy_saved_doc.get("created_at", datetime.utcnow()),
                 )
@@ -367,11 +368,20 @@ class QuizDualWriteService:
                         source="legacy",
                     )
                 canonical_quiz_id = str(canonical_quiz.id)
+            position = None
+            for index, item in enumerate(legacy_folder_doc.get("quizzes", [])):
+                if str(item.get("_id")) == str(legacy_folder_item.get("_id")):
+                    position = index
+                    break
             return await self.reference_repository.upsert_folder_item_by_legacy_id(
                 FolderItemDocumentV2(
                     folder_id=str(folder_v2.id),
                     quiz_id=canonical_quiz_id,
                     added_by=legacy_folder_doc.get("user_id"),
+                    position=position,
+                    display_title=legacy_folder_item.get("title")
+                    or quiz_payload.get("title")
+                    or None,
                     legacy_folder_item_id=legacy_folder_item["_id"],
                     created_at=legacy_folder_item.get("added_on", datetime.utcnow()),
                 )
@@ -419,12 +429,18 @@ class QuizDualWriteService:
                         updated_at=target_legacy_folder_doc.get("updated_at", datetime.utcnow()),
                     )
                 )
+            position = None
+            for index, item in enumerate(target_legacy_folder_doc.get("quizzes", [])):
+                if str(item.get("_id")) == str(legacy_folder_item_id):
+                    position = index
+                    break
             return await self.reference_repository.upsert_folder_item_by_legacy_id(
                 FolderItemDocumentV2(
                     folder_id=str(target_folder.id),
                     quiz_id=folder_item.quiz_id,
                     added_by=folder_item.added_by,
-                    position=folder_item.position,
+                    position=position if position is not None else folder_item.position,
+                    display_title=folder_item.display_title,
                     legacy_folder_item_id=legacy_folder_item_id,
                     created_at=folder_item.created_at,
                 )

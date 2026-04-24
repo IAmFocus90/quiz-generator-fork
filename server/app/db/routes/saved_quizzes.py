@@ -15,6 +15,7 @@ from ....app.db.crud.saved_quiz_crud import (
 )
 
 from ....app.db.models.saved_quiz_model import SavedQuizModel
+from ....app.db.services.quiz_user_library_read_service import QuizUserLibraryReadService
 
 from ....app.dependancies import get_current_user
 
@@ -22,6 +23,7 @@ from ....app.db.schemas.user_schemas import UserResponseSchema
 
 
 router = APIRouter(prefix="/saved-quizzes", tags=["Saved Quizzes"])
+read_service = QuizUserLibraryReadService()
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -72,7 +74,7 @@ async def list_saved_quizzes(
 
     try:
 
-        quizzes = await get_saved_quizzes(user_id=str(current_user.id))
+        quizzes = await read_service.get_saved_quizzes_for_user(user_id=str(current_user.id))
 
         return quizzes
 
@@ -123,7 +125,7 @@ async def get_saved_quiz(
             raise HTTPException(status_code=400, detail="Invalid quiz ID")
 
 
-        quiz = await get_saved_quiz_by_id(quiz_id, user_id=str(current_user.id))
+        quiz = await read_service.get_saved_quiz_by_id(quiz_id, user_id=str(current_user.id))
 
         if not quiz or quiz.get("user_id") != str(current_user.id):
 

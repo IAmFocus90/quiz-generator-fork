@@ -44,6 +44,7 @@ class FolderItemDocumentV2(BaseModel):
     quiz_id: str
     added_by: Optional[str] = None
     position: Optional[int] = None
+    display_title: Optional[str] = None
     legacy_folder_item_id: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -66,6 +67,7 @@ class SavedQuizDocumentV2(BaseModel):
     id: ObjectId = Field(default_factory=ObjectId, alias="_id")
     user_id: str
     quiz_id: str
+    display_title: Optional[str] = None
     legacy_saved_quiz_id: Optional[str] = None
     saved_at: datetime = Field(default_factory=datetime.utcnow)
 
