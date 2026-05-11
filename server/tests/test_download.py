@@ -14,7 +14,9 @@ from fastapi.responses import StreamingResponse
 from io import BytesIO
 
 from server.main import download_quiz_handler
+from server.main import download_quiz_from_payload_handler
 from server.main import limiter
+from server.schemas.model import DownloadQuizRequestModel
 from server.schemas.query import DownloadQuizQuery
 
 from docx import Document
@@ -25,8 +27,8 @@ from server.api.v1.crud.download.download_quiz import (
     download_mock_quiz,
     download_quiz_by_id,
 )
-from server.api.v1.crud.generate_csv import generate_csv
 from server.api.v1.crud.generate_docx import generate_docx
+from server.api.v1.crud.generate_json import generate_json
 from server.api.v1.crud.generate_pdf import generate_pdf
 from server.api.v1.crud.generate_txt import generate_txt
 
@@ -52,7 +54,7 @@ def mock_generate_file(data):
 
     ("txt", "text/plain"),
 
-    ("csv", "text/csv"),
+    ("json", "application/json"),
 
     ("pdf", "application/pdf"),
 
@@ -64,7 +66,7 @@ def mock_generate_file(data):
 
 @patch("server.api.v1.crud.download.download_quiz.generate_txt", side_effect=mock_generate_file)
 
-@patch("server.api.v1.crud.download.download_quiz.generate_csv", side_effect=mock_generate_file)
+@patch("server.api.v1.crud.download.download_quiz.generate_json", side_effect=mock_generate_file)
 
 @patch("server.api.v1.crud.download.download_quiz.generate_pdf", side_effect=mock_generate_file)
 
@@ -72,7 +74,7 @@ def mock_generate_file(data):
 
 def test_download_quiz_valid_formats(
 
-    mock_txt, mock_csv, mock_pdf, mock_docx, format, content_type
+    mock_txt, mock_json, mock_pdf, mock_docx, format, content_type
 
 ):
 
@@ -103,7 +105,7 @@ def test_download_quiz_invalid_question_type(question_type):
     assert "Unsupported question_type" in exc.value.detail
 
 
-@pytest.mark.parametrize("format", ["xml", "json", "xlsx"])
+@pytest.mark.parametrize("format", ["xml", "csv", "xlsx"])
 
 def test_download_quiz_invalid_format(format):
 
@@ -124,7 +126,7 @@ def test_download_quiz_invalid_format(format):
 
     ("txt", "multichoice", 5),
 
-    ("csv", "true-false", 3),
+    ("json", "true-false", 3),
 
     ("pdf", "open-ended", 2),
 
@@ -148,7 +150,7 @@ async def test_download_quiz_api_valid(format, question_type, num_question):
     assert isinstance(response, StreamingResponse)
     assert response.media_type == {
         "txt": "text/plain",
-        "csv": "text/csv",
+        "json": "application/json",
         "pdf": "application/pdf",
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }[format]
@@ -162,7 +164,7 @@ async def test_download_quiz_api_valid(format, question_type, num_question):
 
     ("txt", "invalid-type", 5, 400),
 
-    ("csv", "true-false", 0, 422),
+    ("json", "true-false", 0, 422),
 
 ])
 @pytest.mark.asyncio
@@ -195,101 +197,79 @@ async def test_download_quiz_api_invalid(format, question_type, num_question, ex
 
 
 @pytest.fixture
-
-def sample_quiz_data():
-
-    return [
-
-        {
-
-            "question": "What is the capital of France?",
-
-            "options": ["Paris", "London", "Berlin", "Rome"],
-
-            "answer": "Paris"
-
-        },
-
-        {
-
-            "question": "Venus is the hottest planet in the solar system.",
-
-            "options": ["true", "false"],
-
-            "answer": "true"
-
-        },
-
-        {
-
-            "question": "Explain the process of photosynthesis.",
-
-            "answer": "Photosynthesis is the process by which green plants and some organisms use sunlight to synthesize foods with the help of chlorophyll. It involves the conversion of carbon dioxide and water into glucose and oxygen."
-
-        }
-
-    ]
+def sample_download_payload():
+    return {
+        "title": "Science Drill",
+        "description": "A printable study quiz",
+        "quiz_type": "multichoice",
+        "questions": [
+            {
+                "number": 1,
+                "question": "What is the capital of France?",
+                "options": [
+                    "A) Paris",
+                    "B) London",
+                    "C) Berlin",
+                    "D) Rome",
+                ],
+                "answer": "A) Paris",
+            },
+            {
+                "number": 2,
+                "question": "Venus is the hottest planet in the solar system.",
+                "options": ["A) true", "B) false"],
+                "answer": "A) true",
+            },
+            {
+                "number": 3,
+                "question": "Explain the process of photosynthesis.",
+                "options": [],
+                "answer": "Photosynthesis is the process by which green plants and some organisms use sunlight to synthesize foods with the help of chlorophyll.",
+            },
+        ],
+    }
 
 
-def test_generate_csv(sample_quiz_data):
+def test_generate_json(sample_download_payload):
+    buffer = generate_json(sample_download_payload)
+    content = buffer.getvalue().strip()
 
-    buffer = generate_csv(sample_quiz_data)
+    assert '"title": "Science Drill"' in content
+    assert '"number": 1' in content
+    assert '"question": "What is the capital of France?"' in content
+
+
+def test_generate_txt(sample_download_payload):
+    buffer = generate_txt(sample_download_payload)
 
     content = buffer.getvalue().strip()
 
 
-    assert "Question,Options,Answer" in content
+    assert "Science Drill" in content
+    assert "Type: multichoice" in content
+    assert "Question 1: What is the capital of France?" in content
 
-    assert "What is the capital of France?" in content
+    assert "A) Paris" in content
 
-    assert "\"Paris, London, Berlin, Rome\"" in content
-
-    assert "Paris" in content
-
-
-    assert "Venus is the hottest planet in the solar system." in content
-
-    assert "\"true, false\"" in content
-
-    assert "true" in content
+    assert "Answer: A) Paris" in content
 
 
-    assert "Explain the process of photosynthesis." in content
+    assert "Question 2: Venus is the hottest planet in the solar system." in content
 
-    assert ",,Photosynthesis is the process" in content
+    assert "A) true" in content
 
-
-
-def test_generate_txt(sample_quiz_data):
-
-    buffer = generate_txt(sample_quiz_data)
-
-    content = buffer.getvalue().strip()
+    assert "Answer: A) true" in content
 
 
-    assert "Question: What is the capital of France?" in content
-
-    assert "Options: Paris, London, Berlin, Rome" in content
-
-    assert "Answer: Paris" in content
-
-
-    assert "Question: Venus is the hottest planet in the solar system." in content
-
-    assert "Options: true, false" in content
-
-    assert "Answer: true" in content
-
-
-    assert "Question: Explain the process of photosynthesis." in content
+    assert "Question 3: Explain the process of photosynthesis." in content
 
     assert "Answer: Photosynthesis is the process" in content
 
 
 
-def test_generate_docx(sample_quiz_data):
+def test_generate_docx(sample_download_payload):
 
-    buffer = generate_docx(sample_quiz_data)
+    buffer = generate_docx(sample_download_payload)
 
 
     buffer.seek(0)
@@ -300,29 +280,31 @@ def test_generate_docx(sample_quiz_data):
     paragraphs = [para.text for para in doc.paragraphs]
 
 
-    assert "Question: What is the capital of France?" in paragraphs
+    assert "Science Drill" in paragraphs
+    assert "Type: multichoice" in paragraphs
+    assert "Question 1: What is the capital of France?" in paragraphs
 
-    assert "Options: Paris, London, Berlin, Rome" in paragraphs
+    assert "A) Paris" in paragraphs
 
-    assert "Answer: Paris" in paragraphs
-
-
-    assert "Question: Venus is the hottest planet in the solar system." in paragraphs
-
-    assert "Options: true, false" in paragraphs
-
-    assert "Answer: true" in paragraphs
+    assert "Answer: A) Paris" in paragraphs
 
 
-    assert "Question: Explain the process of photosynthesis." in paragraphs
+    assert "Question 2: Venus is the hottest planet in the solar system." in paragraphs
+
+    assert "A) true" in paragraphs
+
+    assert "Answer: A) true" in paragraphs
+
+
+    assert "Question 3: Explain the process of photosynthesis." in paragraphs
 
     assert "Answer: Photosynthesis is the process" in " ".join(paragraphs)
 
 
 
-def test_generate_pdf(sample_quiz_data):
+def test_generate_pdf(sample_download_payload):
 
-    buffer = generate_pdf(sample_quiz_data)
+    buffer = generate_pdf(sample_download_payload)
 
     buffer.seek(0)
 
@@ -336,23 +318,49 @@ def test_generate_pdf(sample_quiz_data):
         content += page.extract_text()
 
 
-    assert "Question: What is the capital of France?" in content
+    assert "Science Drill" in content
+    assert "Type: multichoice" in content
+    assert "Question 1: What is the capital of France?" in content
 
-    assert "Options: Paris, London, Berlin, Rome" in content
+    assert "A) Paris" in content
 
-    assert "Answer: Paris" in content
-
-
-    assert "Question: Venus is the hottest planet in the solar system." in content
-
-    assert "Options: true, false" in content
-
-    assert "Answer: true" in content
+    assert "Answer: A) Paris" in content
 
 
-    assert "Question: Explain the process of photosynthesis." in content
+    assert "Question 2: Venus is the hottest planet in the solar system." in content
+
+    assert "A) true" in content
+
+    assert "Answer: A) true" in content
+
+
+    assert "Question 3: Explain the process of photosynthesis." in content
 
     assert "Answer: Photosynthesis is the process" in content
+
+
+@pytest.mark.asyncio
+async def test_download_quiz_from_payload_supports_current_displayed_quiz():
+    response = await download_quiz_from_payload_handler(
+        request=MagicMock(),
+        response=Response(),
+        payload=DownloadQuizRequestModel(
+            format="json",
+            title="Current Quiz",
+            description="Generated on the client",
+            quiz_type="multichoice",
+            questions=[
+                {
+                    "question": "Which option is correct?",
+                    "options": ["Correct", "Wrong"],
+                    "answer": "Correct",
+                }
+            ],
+        ),
+    )
+
+    assert isinstance(response, StreamingResponse)
+    assert response.media_type == "application/json"
 
 
 @pytest.mark.asyncio
