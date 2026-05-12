@@ -4,6 +4,7 @@ import { Toaster } from "react-hot-toast";
 import SplashScreen from "../components/splash_screen/SplashScreen";
 import { AuthProvider } from "../contexts/authContext";
 import SignInModal from "../components/auth/SignInModal";
+import EmailVerificationBanner from "../components/auth/EmailVerificationBanner";
 import "../components/ui/global.css";
 
 export default function MyApp({ Component, pageProps }: AppProps) {
@@ -26,6 +27,7 @@ export default function MyApp({ Component, pageProps }: AppProps) {
   return (
     <AuthProvider>
       <SplashScreen />
+      <EmailVerificationBanner />
 
       <Component {...pageProps} openLoginModal={openSignInModal} />
 
