@@ -1,6 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import publicApi from "../../lib/functions/publicApi";
+import { api } from "../../lib/functions/auth";
 import SignInModal from "../auth/SignInModal";
 import SignUpModal from "../auth/SignUpModal";
 import { useAuth } from "../../contexts/authContext";
@@ -10,6 +11,7 @@ import { DownloadQuizProps } from "../../interfaces/props";
 type FileFormat = "txt" | "csv" | "pdf" | "docx";
 
 export default function DownloadQuiz({
+  quizId,
   question_type,
   numQuestion,
 }: DownloadQuizProps) {
@@ -34,31 +36,43 @@ export default function DownloadQuiz({
   };
 
   const handleDownload = async () => {
-    if (!user) {
-      toast.error("Please sign up or sign in to download quizzes.");
-      setShowSignUpModal(true);
-      return;
-    }
+    const isRealQuiz = quizId && quizId.trim() !== "";
 
-    if (user.is_verified === false) {
-      toast.error("Please verify your email to download quizzes.");
-      if (typeof window !== "undefined") {
-        window.location.assign("/auth/verify-email-notice");
+    if (isRealQuiz) {
+      if (!user) {
+        toast.error("Please sign up or sign in to download this quiz.");
+        setShowSignUpModal(true);
+        return;
       }
-      return;
+
+      if (user.is_verified === false) {
+        toast.error("Please verify your email to download this quiz.");
+        if (typeof window !== "undefined") {
+          window.location.assign("/auth/verify-email-notice");
+        }
+        return;
+      }
     }
 
     setIsDownloading(true);
 
     try {
-      const response = await publicApi.get("/download-quiz", {
+      const params = isRealQuiz
+        ? {
+            quiz_id: quizId,
+            format: selectedFormat,
+          }
+        : {
+            pattern: QueryPattern.DownloadQuiz,
+            format: selectedFormat,
+            question_type: question_type,
+            num_question: numQuestion,
+          };
+
+      const client = isRealQuiz ? api : publicApi;
+      const response = await client.get("/download-quiz", {
         responseType: "blob",
-        params: {
-          pattern: QueryPattern.DownloadQuiz,
-          format: selectedFormat,
-          question_type: question_type,
-          num_question: numQuestion,
-        },
+        params,
       });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));

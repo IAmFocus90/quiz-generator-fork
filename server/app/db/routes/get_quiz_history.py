@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends
 from ....app.db.services.quiz_user_library_read_service import QuizUserLibraryReadService
-from ....app.dependancies import get_current_user, get_verified_user
-from ....app.db.crud.update_quiz_history import get_quiz_history
+from ....app.dependancies import get_verified_user
 
 
 router = APIRouter()

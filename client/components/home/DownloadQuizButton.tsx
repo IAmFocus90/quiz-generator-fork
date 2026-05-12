@@ -39,25 +39,27 @@ export default function DownloadQuizButton({
   };
 
   const handleDownload = async () => {
-    if (!user) {
-      toast.error("Please register or sign in to download quizzes.");
-      setShowSignUpModal(true);
-      return;
-    }
+    const isRealQuiz = quizId && quizId.trim() !== "";
 
-    if (user.is_verified === false) {
-      toast.error("Please verify your email to download quizzes.");
-      if (typeof window !== "undefined") {
-        window.location.assign("/auth/verify-email-notice");
+    if (isRealQuiz) {
+      if (!user) {
+        toast.error("Please register or sign in to download this quiz.");
+        setShowSignUpModal(true);
+        return;
       }
-      return;
+
+      if (user.is_verified === false) {
+        toast.error("Please verify your email to download this quiz.");
+        if (typeof window !== "undefined") {
+          window.location.assign("/auth/verify-email-notice");
+        }
+        return;
+      }
     }
 
     setIsDownloading(true);
 
     try {
-      const isRealQuiz = quizId && quizId.trim() !== "";
-
       const requestConfig = {
         responseType: "blob" as const,
         params: isRealQuiz
