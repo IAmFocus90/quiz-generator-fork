@@ -2,7 +2,11 @@
 
 import React, { useState } from "react";
 import toast from "react-hot-toast";
+import { api } from "../../lib/functions/auth";
 import publicApi from "../../lib/functions/publicApi";
+import { useAuth } from "../../contexts/authContext";
+import SignInModal from "../auth/SignInModal";
+import SignUpModal from "../auth/SignUpModal";
 import { DownloadQuizProps } from "../../interfaces/props";
 
 type FileFormat = "txt" | "json" | "pdf" | "docx";
@@ -10,14 +14,16 @@ type FileFormat = "txt" | "json" | "pdf" | "docx";
 export default function DownloadQuizButton({
   quizId,
   question_type,
-  numQuestion,
   quizData = [],
   title,
   description,
 }: DownloadQuizProps) {
+  const { user } = useAuth();
   const [selectedFormat, setSelectedFormat] = useState<FileFormat>("txt");
   const [isDownloading, setIsDownloading] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
 
   const handleFormatChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedFormat(event.target.value as FileFormat);
@@ -40,14 +46,42 @@ export default function DownloadQuizButton({
     link.remove();
     window.URL.revokeObjectURL(url);
   };
+  
+  const switchToSignUp = () => {
+    setShowSignInModal(false);
+    setShowSignUpModal(true);
+  };
+
+  const switchToSignIn = () => {
+    setShowSignUpModal(false);
+    setShowSignInModal(true);
+  };
 
   const handleDownload = async () => {
+    const isRealQuiz = quizId && quizId.trim() !== "";
+
+    if (isRealQuiz) {
+      if (!user) {
+        toast.error("Please register or sign in to download this quiz.");
+        setShowSignUpModal(true);
+        return;
+      }
+
+      if (user.is_verified === false) {
+        toast.error("Please verify your email to download this quiz.");
+        if (typeof window !== "undefined") {
+          window.location.assign("/auth/verify-email-notice");
+        }
+        return;
+      }
+    }
+  
     setIsDownloading(true);
     try {
       const isRealQuiz = !!quizId?.trim();
-
+  
       if (isRealQuiz) {
-        const response = await publicApi.get("/download-quiz", {
+        const response = await api.get("/download-quiz", {
           responseType: "blob",
           params: {
             quiz_id: quizId,
@@ -75,12 +109,7 @@ export default function DownloadQuizButton({
             questions: quizData.map((question) => ({
               question: question.question,
               options: question.options || null,
-              answer:
-                String(
-                  question.answer ??
-                    question.correct_answer ??
-                    "",
-                ),
+              answer: String(question.answer ?? question.correct_answer ?? ""),
             })),
           },
           {
@@ -98,12 +127,21 @@ export default function DownloadQuizButton({
       setShowOptions(false);
       toast.success("Quiz download started.");
     } catch (error: any) {
-      console.error("Download failed:", error);
-      toast.error(
-        error?.response?.data?.detail ||
-          error?.message ||
-          "Failed to download quiz.",
-      );
+      const status = error?.response?.status;
+      const detail = error?.response?.data?.detail;
+
+      if (status === 401) {
+        toast.error("Authentication required. Please sign in or sign up.");
+        setShowSignUpModal(true);
+      } else if (status === 403 && detail === "Email not verified") {
+        toast.error("Please verify your email before downloading quizzes.");
+        if (typeof window !== "undefined") {
+          window.location.assign("/auth/verify-email-notice");
+        }
+      } else {
+        toast.error(detail || error?.message || "Failed to download quiz.");
+        console.error("Download failed:", error);
+      }
     } finally {
       setIsDownloading(false);
     }
@@ -150,6 +188,17 @@ export default function DownloadQuizButton({
           </button>
         </div>
       )}
+
+      <SignUpModal
+        isOpen={showSignUpModal}
+        onClose={() => setShowSignUpModal(false)}
+        switchToSignIn={switchToSignIn}
+      />
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={() => setShowSignInModal(false)}
+        switchToSignUp={switchToSignUp}
+      />
     </div>
   );
 }
