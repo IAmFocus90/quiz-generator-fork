@@ -35,6 +35,7 @@ from .app.db.routes.folder_routes import router as folder_routes
 from .app.db.routes.get_categories import router as get_categories_router
 from .app.db.routes.get_quiz_history import router as get_quiz_history_router
 from .app.db.routes.save_quiz_history import router as save_quiz_router
+from .app.api.v1.routes.live_quiz_sessions import router as live_quiz_router
 from .app.quiz.routers.quiz import router as quiz_router
 from .app.share.routes.share_routes import router as share_router
 from .schemas.model import DownloadQuizRequestModel
@@ -96,6 +97,7 @@ app.include_router(folder_routes, prefix="/api/folders", tags=["Folders"])
 app.include_router(save_quiz_router, prefix="/api")
 app.include_router(get_quiz_history_router, prefix="/api")
 app.include_router(get_categories_router, prefix="/api")
+app.include_router(live_quiz_router, prefix="/api/v1", tags=["Live Quiz"])
 app.database = database
 
 

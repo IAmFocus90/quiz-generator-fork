@@ -1,7 +1,9 @@
 
 
 
-from pydantic import BaseModel
+from datetime import datetime
+
+from pydantic import BaseModel, Field
 
 from typing import Optional, List
 
@@ -19,9 +21,10 @@ class QuizRequest(BaseModel):
     audience_type: str
 
     custom_instruction: Optional[str] = None
-    token: str
-
     token: Optional[str] = None
+    live_quiz_enabled: bool = False
+    time_limit_minutes: Optional[int] = Field(default=None, gt=0, le=1440)
+    access_code_expires_at: Optional[datetime] = None
 
 
 
@@ -46,4 +49,7 @@ class QuizResponse(BaseModel):
 
     notification_message: Optional[str] = None
     quiz_id: Optional[str] = None
-
+    live_quiz_enabled: Optional[bool] = False
+    access_code: Optional[str] = None
+    time_limit_minutes: Optional[int] = None
+    access_code_expires_at: Optional[datetime] = None

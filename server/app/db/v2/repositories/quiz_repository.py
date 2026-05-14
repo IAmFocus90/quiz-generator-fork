@@ -41,6 +41,13 @@ class QuizV2Repository:
         document = await self.collection.find_one({"structure_fingerprint": structure_fingerprint})
         return QuizDocumentV2(**document) if document else None
 
+    async def find_by_access_code(self, access_code: str) -> Optional[QuizDocumentV2]:
+        document = await self.collection.find_one({"access_code": access_code})
+        return QuizDocumentV2(**document) if document else None
+
+    async def access_code_exists(self, access_code: str) -> bool:
+        return await self.collection.count_documents({"access_code": access_code}, limit=1) > 0
+
     async def list_by_title_and_quiz_type(self, title: str, quiz_type: str) -> list[QuizDocumentV2]:
         cursor = self.collection.find({"title": title, "quiz_type": quiz_type, "status": {"$ne": "deleted"}})
         documents = await cursor.to_list(length=20)
@@ -115,6 +122,32 @@ class QuizV2Repository:
                 {
                     "$set": {
                         **update.model_dump(exclude_unset=True),
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+        except InvalidId:
+            return None
+        return QuizDocumentV2(**updated) if updated else None
+
+    async def enable_live_quiz(
+        self,
+        quiz_id: str,
+        *,
+        access_code: str,
+        time_limit_minutes: int,
+        access_code_expires_at: datetime,
+    ) -> Optional[QuizDocumentV2]:
+        try:
+            updated = await self.collection.find_one_and_update(
+                {"_id": ObjectId(quiz_id), "status": {"$ne": "deleted"}},
+                {
+                    "$set": {
+                        "live_quiz_enabled": True,
+                        "time_limit_minutes": time_limit_minutes,
+                        "access_code": access_code,
+                        "access_code_expires_at": access_code_expires_at,
                         "updated_at": datetime.utcnow(),
                     }
                 },

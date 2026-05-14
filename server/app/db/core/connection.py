@@ -23,6 +23,7 @@ quizzes_collection = database["quizzes"]
 users_collection = database["users"]
 quiz_history_collection = database["quiz_history"]
 ai_generated_quizzes_collection = database["ai_generated_quizzes"]
+live_quiz_sessions_collection = database["live_quiz_sessions"]
 
 
 quiz_categories_collection = database["quizzes_category"]
@@ -69,11 +70,22 @@ async def ensure_user_tokens_indexes(user_tokens_collection: AsyncIOMotorCollect
     await user_tokens_collection.create_index("user_id", unique=True)
 
 
+async def ensure_live_quiz_session_indexes(
+    live_quiz_sessions_collection: AsyncIOMotorCollection,
+):
+    """Indexes for participant live quiz sessions."""
+    await live_quiz_sessions_collection.create_index("quiz_id")
+    await live_quiz_sessions_collection.create_index("guest_id")
+    await live_quiz_sessions_collection.create_index("status")
+    await live_quiz_sessions_collection.create_index("expires_at")
+
+
 async def startUp():
     await ensure_user_indexes(users_collection)
     await ensure_blacklist_indexes(blacklisted_tokens_collection)
     await ensure_ai_quiz_indexes(ai_generated_quizzes_collection)
     await ensure_user_tokens_indexes(user_tokens_collection)
+    await ensure_live_quiz_session_indexes(live_quiz_sessions_collection)
     await ensure_v2_collections_and_validators(database)
     await ensure_v2_indexes(
         quizzes_v2_collection,
@@ -116,6 +128,12 @@ def get_user_tokens_collection() -> AsyncIOMotorCollection:
     if user_tokens_collection is None:
         raise RuntimeError("[DB Error] user_tokens_collection has not been initialized properly.")
     return user_tokens_collection
+
+
+def get_live_quiz_sessions_collection() -> AsyncIOMotorCollection:
+    if live_quiz_sessions_collection is None:
+        raise RuntimeError("[DB Error] live_quiz_sessions_collection has not been initialized properly.")
+    return live_quiz_sessions_collection
 
 
 def get_quizzes_v2_collection() -> AsyncIOMotorCollection:
