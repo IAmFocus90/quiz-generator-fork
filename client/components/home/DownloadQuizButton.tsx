@@ -2,20 +2,21 @@
 
 import React, { useState } from "react";
 import toast from "react-hot-toast";
-import publicApi from "../../lib/functions/publicApi";
 import { api } from "../../lib/functions/auth";
+import publicApi from "../../lib/functions/publicApi";
 import { useAuth } from "../../contexts/authContext";
 import SignInModal from "../auth/SignInModal";
 import SignUpModal from "../auth/SignUpModal";
-import { QueryPattern } from "../../constants/patterns";
 import { DownloadQuizProps } from "../../interfaces/props";
 
-type FileFormat = "txt" | "csv" | "pdf" | "docx";
+type FileFormat = "txt" | "json" | "pdf" | "docx";
 
 export default function DownloadQuizButton({
   quizId,
   question_type,
-  numQuestion,
+  quizData = [],
+  title,
+  description,
 }: DownloadQuizProps) {
   const { user } = useAuth();
   const [selectedFormat, setSelectedFormat] = useState<FileFormat>("txt");
@@ -28,6 +29,24 @@ export default function DownloadQuizButton({
     setSelectedFormat(event.target.value as FileFormat);
   };
 
+  const downloadBlob = (
+    blob: Blob,
+    fallbackName: string,
+    contentDisposition?: string,
+  ) => {
+    const matchedFilename = contentDisposition?.match(/filename=([^;]+)/i)?.[1];
+    const resolvedName = matchedFilename?.replace(/"/g, "") || fallbackName;
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.setAttribute("download", resolvedName);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+  
   const switchToSignUp = () => {
     setShowSignInModal(false);
     setShowSignUpModal(true);
@@ -56,38 +75,57 @@ export default function DownloadQuizButton({
         return;
       }
     }
-
+  
     setIsDownloading(true);
-
     try {
-      const requestConfig = {
-        responseType: "blob" as const,
-        params: isRealQuiz
-          ? {
-              quiz_id: quizId,
-              format: selectedFormat,
-            }
-          : {
-              pattern: QueryPattern.DownloadQuiz,
-              format: selectedFormat,
-              question_type: question_type,
-              num_question: numQuestion,
-            },
-      };
+      const isRealQuiz = !!quizId?.trim();
+  
+      if (isRealQuiz) {
+        const response = await api.get("/download-quiz", {
+          responseType: "blob",
+          params: {
+            quiz_id: quizId,
+            format: selectedFormat,
+          },
+        });
 
-      const client = isRealQuiz ? api : publicApi;
-      const response = await client.get("/download-quiz", requestConfig);
+        downloadBlob(
+          new Blob([response.data]),
+          `${question_type}-quiz.${selectedFormat}`,
+          response.headers["content-disposition"],
+        );
+      } else {
+        if (!quizData.length) {
+          throw new Error("No quiz questions available to download.");
+        }
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
+        const response = await publicApi.post(
+          "/download-quiz",
+          {
+            format: selectedFormat,
+            title,
+            description,
+            quiz_type: question_type,
+            questions: quizData.map((question) => ({
+              question: question.question,
+              options: question.options || null,
+              answer: String(question.answer ?? question.correct_answer ?? ""),
+            })),
+          },
+          {
+            responseType: "blob",
+          },
+        );
 
-      link.href = url;
-      link.setAttribute("download", `${question_type}-quiz.${selectedFormat}`);
+        downloadBlob(
+          new Blob([response.data]),
+          `${question_type}-quiz.${selectedFormat}`,
+          response.headers["content-disposition"],
+        );
+      }
 
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
       setShowOptions(false);
+      toast.success("Quiz download started.");
     } catch (error: any) {
       const status = error?.response?.status;
       const detail = error?.response?.data?.detail;
@@ -101,7 +139,7 @@ export default function DownloadQuizButton({
           window.location.assign("/auth/verify-email-notice");
         }
       } else {
-        toast.error("Download failed. Please try again.");
+        toast.error(detail || error?.message || "Failed to download quiz.");
         console.error("Download failed:", error);
       }
     } finally {
@@ -137,7 +175,7 @@ export default function DownloadQuizButton({
             className="w-full border border-gray-300 rounded-md px-3 py-2 mb-4 focus:outline-none focus:ring focus:ring-blue-500 text-sm"
           >
             <option value="txt">TXT</option>
-            <option value="csv">CSV</option>
+            <option value="json">JSON</option>
             <option value="pdf">PDF</option>
             <option value="docx">DOCX</option>
           </select>

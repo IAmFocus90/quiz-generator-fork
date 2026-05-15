@@ -35,6 +35,8 @@ const QuizDisplayPage: React.FC = () => {
   const [isQuizChecked, setIsQuizChecked] = useState<boolean>(false);
   const [quizReport, setQuizReport] = useState<any[]>([]);
   const [quizId, setQuizId] = useState(canonicalQuizId);
+  const [quizTitle, setQuizTitle] = useState("");
+  const [quizDescription, setQuizDescription] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const hasFetchedRef = useRef(false); // ✅ Prevent double fetch
 
@@ -62,6 +64,11 @@ const QuizDisplayPage: React.FC = () => {
           if (storedQuestions.length > 0) {
             const resolvedStoredQuizId =
               parsedQuiz?.quiz_id || canonicalQuizId || "";
+            setQuizTitle(
+              parsedQuiz?.title ||
+                `${parsedQuiz?.question_type || questionType} Quiz`,
+            );
+            setQuizDescription(parsedQuiz?.description || "");
             const normalizedQuestions = storedQuestions.map((q: any) => ({
               ...q,
               answer: q.answer || q.correct_answer,
@@ -92,6 +99,8 @@ const QuizDisplayPage: React.FC = () => {
             answer: q.answer || q.correct_answer,
             question_type: q.question_type || questionType,
           }));
+          setQuizTitle(data.title || `${data.question_type || questionType} Quiz`);
+          setQuizDescription(data.description || "");
           const resolvedSavedQuizId = data.quiz_id || canonicalQuizId || "";
           setQuizId(resolvedSavedQuizId);
           resolvedQuizId = resolvedSavedQuizId;
@@ -130,6 +139,13 @@ const QuizDisplayPage: React.FC = () => {
               ...q,
               question_type: q.question_type || questionType,
             })) || [];
+          setQuizTitle(
+            `${profession || questionType.charAt(0).toUpperCase() + questionType.slice(1)} Quiz`,
+          );
+          setQuizDescription(
+            customInstruction ||
+              `A ${difficultyLevel} ${questionType} quiz for ${audienceType}.`,
+          );
           if (!Array.isArray(questions) || questions.length === 0) {
             throw new Error("No quiz questions returned.");
           }
@@ -284,6 +300,7 @@ const QuizDisplayPage: React.FC = () => {
                     index={i}
                     onAnswerChange={handleAnswerChange}
                     options={q.options || []}
+                    value={userAnswers[i]}
                   />
                 </div>
               ))}
@@ -296,6 +313,9 @@ const QuizDisplayPage: React.FC = () => {
                 quizId={quizId}
                 question_type={questionType}
                 numQuestion={numQuestions}
+                quizData={quizQuestions}
+                title={quizTitle}
+                description={quizDescription}
               />
               <ShareButton quizId={quizId} />
               {isQuizChecked && <NewQuizButton />}

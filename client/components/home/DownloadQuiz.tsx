@@ -1,14 +1,14 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
-import publicApi from "../../lib/functions/publicApi";
 import { api } from "../../lib/functions/auth";
-import SignInModal from "../auth/SignInModal";
-import SignUpModal from "../auth/SignUpModal";
+import publicApi from "../../lib/functions/publicApi";
 import { useAuth } from "../../contexts/authContext";
 import { QueryPattern } from "../../constants/patterns";
 import { DownloadQuizProps } from "../../interfaces/props";
+import SignInModal from "../auth/SignInModal";
+import SignUpModal from "../auth/SignUpModal";
 
-type FileFormat = "txt" | "csv" | "pdf" | "docx";
+type FileFormat = "txt" | "json" | "pdf" | "docx";
 
 export default function DownloadQuiz({
   quizId,
@@ -36,7 +36,7 @@ export default function DownloadQuiz({
   };
 
   const handleDownload = async () => {
-    const isRealQuiz = quizId && quizId.trim() !== "";
+    const isRealQuiz = !!quizId?.trim();
 
     if (isRealQuiz) {
       if (!user) {
@@ -65,7 +65,7 @@ export default function DownloadQuiz({
         : {
             pattern: QueryPattern.DownloadQuiz,
             format: selectedFormat,
-            question_type: question_type,
+            question_type,
             num_question: numQuestion,
           };
 
@@ -82,6 +82,8 @@ export default function DownloadQuiz({
       document.body.appendChild(link);
       link.click();
       link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("Quiz download started.");
     } catch (error: any) {
       const status = error?.response?.status;
       const detail = error?.response?.data?.detail;
@@ -125,7 +127,7 @@ export default function DownloadQuiz({
           className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <option value="txt">TXT</option>
-          <option value="csv">CSV</option>
+          <option value="json">JSON</option>
           <option value="pdf">PDF</option>
           <option value="docx">DOCX</option>
         </select>

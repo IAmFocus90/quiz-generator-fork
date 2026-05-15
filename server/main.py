@@ -13,7 +13,11 @@ from slowapi.errors import RateLimitExceeded
 
 from .api import healthcheck
 from .api.v1.crud import generate_quiz, get_user_quiz_history
-from .api.v1.crud.download.download_quiz import download_mock_quiz, download_quiz_by_id
+from .api.v1.crud.download.download_quiz import (
+    download_mock_quiz,
+    download_quiz_by_id,
+    download_quiz_from_payload,
+)
 from .app.auth.routes import router as auth_router
 from .app.db.core.config import settings
 from .app.db.core.connection import (
@@ -33,6 +37,7 @@ from .app.db.routes.get_quiz_history import router as get_quiz_history_router
 from .app.db.routes.save_quiz_history import router as save_quiz_router
 from .app.quiz.routers.quiz import router as quiz_router
 from .app.share.routes.share_routes import router as share_router
+from .schemas.model import DownloadQuizRequestModel
 from .schemas.query import DownloadQuizQuery, GenerateQuizQuery, GetUserQuizHistoryQuery
 from .app.dependancies import get_current_user, get_current_user_optional, get_verified_user
 
@@ -176,6 +181,22 @@ async def download_quiz_handler(
         query.format, 
         query.question_type, 
         query.num_question)
+
+
+@app.post("/download-quiz")
+@limiter.limit("20/minute")
+async def download_quiz_from_payload_handler(
+    request: Request,
+    response: Response,
+    payload: DownloadQuizRequestModel = Body(...),
+) -> StreamingResponse:
+    return download_quiz_from_payload(
+        title=payload.title,
+        description=payload.description,
+        quiz_type=payload.quiz_type,
+        questions=[question.model_dump(exclude_none=True) for question in payload.questions],
+        file_format=payload.format,
+    )
 
 
 @app.get("/ping-redis")
