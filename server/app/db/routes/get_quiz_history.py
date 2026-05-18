@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from ....app.dependancies import get_current_user
+from ....app.dependancies import get_verified_user
 from ....app.db.schemas.quiz_management_schemas import (
     DeleteResourceResponse,
     QuizHistoryDetailResponse,
@@ -13,7 +13,7 @@ quiz_user_library_service = QuizUserLibraryService()
 
 
 @router.get("/quiz-history")
-async def get_user_quiz_history(current_user=Depends(get_current_user)):
+async def get_user_quiz_history(current_user=Depends(get_verified_user)):
 
     """
     Returns quiz history for the currently authenticated user.
@@ -32,7 +32,7 @@ async def get_user_quiz_history(current_user=Depends(get_current_user)):
 @router.get("/quiz-history/{history_id}", response_model=QuizHistoryDetailResponse)
 async def get_quiz_history_details(
     history_id: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_verified_user),
 ):
     quiz = await quiz_user_library_service.get_quiz_history_detail(
         user_id=str(current_user.id),
@@ -46,7 +46,7 @@ async def get_quiz_history_details(
 @router.delete("/quiz-history/{history_id}", response_model=DeleteResourceResponse)
 async def delete_quiz_history_entry(
     history_id: str,
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_verified_user),
 ):
     deleted = await quiz_user_library_service.delete_quiz_history_entry(
         user_id=str(current_user.id),

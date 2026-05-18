@@ -19,14 +19,19 @@ interface QuizHistoryQuestion {
 }
 
 interface QuizHistoryItem {
-  _id: string;
+  id?: string;
+  _id?: string;
   created_at?: string;
+  quiz_name?: string;
   question_type: string;
   difficulty_level?: string;
   profession?: string;
   audience_type?: string;
   questions: QuizHistoryQuestion[];
 }
+
+const getQuizHistoryId = (quizItem: Partial<QuizHistoryItem>) =>
+  quizItem._id || quizItem.id || "";
 
 const DisplayQuizHistoryPage = ({
   quizHistory,
@@ -68,7 +73,7 @@ const DisplayQuizHistoryPage = ({
           ) : (
             quizHistory.map((quizItem, idx) => (
               <div
-                key={quizItem._id}
+                key={getQuizHistoryId(quizItem)}
                 className="bg-white p-6 rounded-xl shadow-md border border-gray-200"
               >
                 {idx > 0 && <hr className="border-gray-300 my-4" />}
@@ -81,7 +86,9 @@ const DisplayQuizHistoryPage = ({
                         : "Unknown date"}
                     </p>
                     <h2 className="text-lg font-semibold text-[#0F2654]">
-                      {quizItem.profession || "Quiz History Item"}
+                      {quizItem.profession ||
+                        quizItem.quiz_name ||
+                        "Quiz History Item"}
                     </h2>
                     <p className="text-sm text-gray-600">
                       {quizItem.question_type} ·{" "}
@@ -92,18 +99,24 @@ const DisplayQuizHistoryPage = ({
                   <div className="flex gap-2">
                     <button
                       onClick={() =>
-                        router.push(`/quiz_history/${quizItem._id}`)
+                        router.push(
+                          `/quiz_history/${getQuizHistoryId(quizItem)}`,
+                        )
                       }
                       className="px-3 py-1 rounded-lg bg-[#0a3264] text-white text-sm hover:bg-[#082952]"
                     >
                       View Details
                     </button>
                     <button
-                      onClick={() => setConfirmDeleteId(quizItem._id)}
-                      disabled={deletingId === quizItem._id}
+                      onClick={() =>
+                        setConfirmDeleteId(getQuizHistoryId(quizItem))
+                      }
+                      disabled={deletingId === getQuizHistoryId(quizItem)}
                       className="px-3 py-1 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50 disabled:opacity-50"
                     >
-                      {deletingId === quizItem._id ? "Deleting..." : "Delete"}
+                      {deletingId === getQuizHistoryId(quizItem)
+                        ? "Deleting..."
+                        : "Delete"}
                     </button>
                   </div>
                 </div>
@@ -229,7 +242,7 @@ export default function DisplayQuizHistory({
             try {
               await deleteQuizHistoryItem(historyId);
               setQuizHistory((prev) =>
-                prev.filter((item) => item._id !== historyId),
+                prev.filter((item) => getQuizHistoryId(item) !== historyId),
               );
               toast.success("Quiz history item deleted.");
             } catch (error) {

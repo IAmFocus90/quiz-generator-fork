@@ -15,8 +15,10 @@ interface QuizHistoryQuestion {
 }
 
 interface QuizHistoryItem {
-  _id: string;
+  id?: string;
+  _id?: string;
   created_at?: string;
+  quiz_name?: string;
   question_type: string;
   difficulty_level?: string;
   profession?: string;
@@ -76,7 +78,7 @@ export default function QuizHistoryDetailsPage() {
             ) : (
               <div className="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                 <h1 className="text-3xl font-bold text-[#0F2654] mb-2">
-                  {item.profession || "Quiz History Item"}
+                  {item.profession || item.quiz_name || "Quiz History Item"}
                 </h1>
                 <p className="text-sm text-gray-500 mb-1">
                   Generated on:{" "}
