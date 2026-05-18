@@ -448,7 +448,9 @@ class ReferenceV2Repository:
         query: dict[str, str] = {"legacy_saved_quiz_id": legacy_saved_quiz_id}
         if user_id is not None:
             query["user_id"] = user_id
-        document = await self.saved_quizzes_collection.find_one({"$and": [query, self._active_query()]})
+        document = await self.saved_quizzes_collection.find_one(
+            {"$and": [query, self._active_query()]}
+        )
         return SavedQuizDocumentV2(**document) if document else None
 
     async def get_saved_quiz_by_id(
@@ -463,7 +465,9 @@ class ReferenceV2Repository:
             return None
         if user_id is not None:
             query["user_id"] = user_id
-        document = await self.saved_quizzes_collection.find_one({"$and": [query, self._active_query()]})
+        document = await self.saved_quizzes_collection.find_one(
+            {"$and": [query, self._active_query()]}
+        )
         return SavedQuizDocumentV2(**document) if document else None
 
     async def get_saved_quiz_by_public_id(
@@ -471,7 +475,10 @@ class ReferenceV2Repository:
         saved_quiz_id: str,
         user_id: Optional[str] = None,
     ) -> SavedQuizDocumentV2 | None:
-        return await self.get_saved_quiz_by_legacy_id(saved_quiz_id, user_id=user_id) or await self.get_saved_quiz_by_id(
+        return await self.get_saved_quiz_by_legacy_id(
+            saved_quiz_id,
+            user_id=user_id,
+        ) or await self.get_saved_quiz_by_id(
             saved_quiz_id,
             user_id=user_id,
         )
@@ -551,11 +558,16 @@ class ReferenceV2Repository:
             await self.delete_saved_quiz_by_id(str(saved_quiz.id), user_id=user_id)
         ) > 0
 
-    async def upsert_quiz_history(self, quiz_history: QuizHistoryDocumentV2) -> QuizHistoryDocumentV2:
+    async def upsert_quiz_history(
+        self,
+        quiz_history: QuizHistoryDocumentV2,
+    ) -> QuizHistoryDocumentV2:
         payload = quiz_history.model_dump(by_alias=True)
         payload.pop("_id", None)
         created_at = payload.pop("created_at")
-        existing = await self.quiz_history_collection.find_one({"legacy_history_id": quiz_history.legacy_history_id})
+        existing = await self.quiz_history_collection.find_one(
+            {"legacy_history_id": quiz_history.legacy_history_id}
+        )
         if existing is not None and existing.get("deleted_at") is not None:
             payload["deleted_at"] = existing["deleted_at"]
         updated = await self.quiz_history_collection.find_one_and_update(

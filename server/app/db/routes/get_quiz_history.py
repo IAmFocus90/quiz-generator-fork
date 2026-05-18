@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from ....app.dependancies import get_verified_user
 from ....app.db.schemas.quiz_management_schemas import (
     DeleteResourceResponse,
     QuizHistoryDetailResponse,
 )
 from ....app.db.services.quiz_user_library_service import QuizUserLibraryService
+from ....app.dependancies import get_verified_user
 
 
 router = APIRouter()
@@ -14,18 +14,15 @@ quiz_user_library_service = QuizUserLibraryService()
 
 @router.get("/quiz-history")
 async def get_user_quiz_history(current_user=Depends(get_verified_user)):
-
     """
     Returns quiz history for the currently authenticated user.
     JWT token required in Authorization header.
     """
 
-    user_id = current_user.id
-
+    user_id = str(current_user.id)
     quizzes = await quiz_user_library_service.list_quiz_history_items(
-        user_id=str(user_id)
+        user_id=user_id
     )
-
     return quizzes
 
 
