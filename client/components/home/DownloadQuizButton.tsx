@@ -46,7 +46,7 @@ export default function DownloadQuizButton({
     link.remove();
     window.URL.revokeObjectURL(url);
   };
-  
+
   const switchToSignUp = () => {
     setShowSignInModal(false);
     setShowSignUpModal(true);
@@ -75,11 +75,9 @@ export default function DownloadQuizButton({
         return;
       }
     }
-  
     setIsDownloading(true);
     try {
       const isRealQuiz = !!quizId?.trim();
-  
       if (isRealQuiz) {
         const response = await api.get("/download-quiz", {
           responseType: "blob",

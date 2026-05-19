@@ -35,6 +35,7 @@ from .app.db.routes.folder_routes import router as folder_routes
 from .app.db.routes.get_categories import router as get_categories_router
 from .app.db.routes.get_quiz_history import router as get_quiz_history_router
 from .app.db.routes.save_quiz_history import router as save_quiz_router
+from .app.api.v1.routes.live_quiz_sessions import router as live_quiz_router
 from .app.quiz.routers.quiz import router as quiz_router
 from .app.share.routes.share_routes import router as share_router
 from .schemas.model import DownloadQuizRequestModel
@@ -97,6 +98,7 @@ app.include_router(notifications.router, prefix="/api/notifications", tags=["Not
 app.include_router(save_quiz_router, prefix="/api")
 app.include_router(get_quiz_history_router, prefix="/api")
 app.include_router(get_categories_router, prefix="/api")
+app.include_router(live_quiz_router, prefix="/api/v1", tags=["Live Quiz"])
 app.database = database
 
 
@@ -148,7 +150,7 @@ async def get_user_quiz_history_handler(
     request: Request,
     response: Response,
     query: GetUserQuizHistoryQuery = Body(...),
-    current_user: UserOut = Depends(get_verified_user),  
+    current_user: UserOut = Depends(get_verified_user),
 ) -> List[Any]:
     logger.info("Received query: %s", query)
 
@@ -179,8 +181,8 @@ async def download_quiz_handler(
         )
 
     return download_mock_quiz(
-        query.format, 
-        query.question_type, 
+        query.format,
+        query.question_type,
         query.num_question)
 
 

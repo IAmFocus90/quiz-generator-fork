@@ -6,6 +6,12 @@ from server.app.quiz.models.quiz_models import QuizRequest
 from server.app.quiz.utils.huggingface_utils import generate_quiz_with_huggingface
 from server.app.quiz.utils.mock_quiz_generator import get_mock_questions_by_type
 from server.app.db.crud.ai_generated_quiz_crud import save_ai_generated_quiz
+from server.app.db.core.connection import (
+    get_live_quiz_sessions_collection,
+    get_quizzes_v2_collection,
+)
+from server.app.db.v2.repositories.live_quiz_session_repository import LiveQuizSessionRepository
+from server.app.services.live_quiz_session_service import LiveQuizSessionService
 
 
 async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dict:
@@ -15,9 +21,12 @@ async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dic
     ai_quiz_payload = None
     final_questions = []
     quiz_id = None  
+    live_access_code = None
+    live_access_code_expires_at = None
+    live_time_limit_minutes = None
 
     try:
-        ai_payload = request.dict()
+        ai_payload = request.model_dump()
         if user_id:
             ai_payload["user_id"] = user_id
 
@@ -81,12 +90,67 @@ async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dic
         except Exception as db_error:
             logging.error(f"Failed to save AI-generated quiz to DB: {db_error}")
 
+    if request.live_quiz_enabled:
+        if not user_id:
+            raise HTTPException(
+                status_code=401,
+                detail="Login is required to generate a live quiz access code",
+            )
+        if not quiz_id:
+            try:
+                save_result = await save_ai_generated_quiz(
+                    {
+                        "profession": request.profession,
+                        "question_type": request.question_type,
+                        "difficulty_level": request.difficulty_level,
+                        "num_questions": request.num_questions,
+                        "audience_type": request.audience_type,
+                        "custom_instruction": request.custom_instruction,
+                        "questions": final_questions,
+                        "user_id": user_id,
+                    }
+                )
+                if save_result and "quiz_id" in save_result:
+                    quiz_id = save_result.get("quiz_id")
+            except Exception as db_error:
+                logging.error(f"Failed to save live quiz before access-code generation: {db_error}")
+        if not quiz_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Live quiz access code could not be generated because the quiz was not saved",
+            )
+        if not request.time_limit_minutes or not request.access_code_expires_at:
+            raise HTTPException(
+                status_code=400,
+                detail="Live quiz duration and access code expiration are required",
+            )
+
+        live_service = LiveQuizSessionService(
+            LiveQuizSessionRepository(
+                get_quizzes_v2_collection(),
+                get_live_quiz_sessions_collection(),
+            )
+        )
+        live_config = await live_service.generate_access_code(
+            quiz_id=quiz_id,
+            access_code_expires_at=request.access_code_expires_at,
+            creator_id=user_id,
+            time_limit_minutes=request.time_limit_minutes,
+        )
+        live_access_code = live_config["access_code"]
+        live_access_code_expires_at = live_config["access_code_expires_at"]
+        live_time_limit_minutes = live_config["time_limit_minutes"]
+
     result = {
         "source": source,
         "questions": final_questions,
         "ai_down": ai_down,
         "notification_message": notification_message,
-        "quiz_id": quiz_id  
+        "quiz_id": quiz_id,
+        "live_quiz_enabled": bool(live_access_code),
+        "access_code": live_access_code,
+        "time_limit_minutes": live_time_limit_minutes,
+        "access_code_expires_at": live_access_code_expires_at,
     }
 
     logging.warning(f"Final API Response: {result}")

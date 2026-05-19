@@ -71,7 +71,10 @@ export default function SharePage({ quiz, notFoundQuiz }: SharePageProps) {
             quiz?.description || "This shared quiz is invalid or unavailable."
           }
         />
-        <meta property="og:url" content={`${ShareUrl}/share/${quiz?.id || ""}`} />
+        <meta
+          property="og:url"
+          content={`${ShareUrl}/share/${quiz?.id || ""}`}
+        />
         <meta property="og:type" content="website" />
         <meta property="og:image" content={`${ShareUrl}/quiz-preview.png`} />
         <meta property="og:site_name" content="HQuiz" />
@@ -79,7 +82,11 @@ export default function SharePage({ quiz, notFoundQuiz }: SharePageProps) {
       <div className="flex flex-col min-h-screen bg-gray-100">
         <NavBar />
         <main className="flex-1 flex justify-center px-4 py-8">
-          {notFoundQuiz ? <SharedQuizMissingState /> : <DisplaySharedQuiz quiz={quiz} />}
+          {notFoundQuiz ? (
+            <SharedQuizMissingState />
+          ) : (
+            <DisplaySharedQuiz quiz={quiz} />
+          )}
         </main>
         <Footer />
       </div>

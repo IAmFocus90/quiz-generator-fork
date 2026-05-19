@@ -45,6 +45,14 @@ async def ensure_quizzes_v2_indexes(collection: AsyncIOMotorCollection):
     )
     await collection.create_index("content_fingerprint")
     await collection.create_index("structure_fingerprint")
+    await _ensure_partial_unique_index(
+        collection,
+        keys=[("access_code", 1)],
+        name="access_code_1",
+        partial_filter_expression={"access_code": {"$exists": True, "$type": "string"}},
+    )
+    await collection.create_index("access_code_expires_at")
+    await collection.create_index([("live_quiz_enabled", 1), ("access_code_expires_at", 1)])
 
 
 async def ensure_folders_v2_indexes(collection: AsyncIOMotorCollection):

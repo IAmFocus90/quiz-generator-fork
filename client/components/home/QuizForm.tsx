@@ -17,6 +17,13 @@ export default function QuizForm() {
   const [difficultyLevel, setDifficultyLevel] = useState("easy");
   const [token, setToken] = useState("");
   const [previousToken, setPreviousToken] = useState("");
+  const [enableLiveQuiz, setEnableLiveQuiz] = useState(false);
+  const [liveDurationMinutes, setLiveDurationMinutes] = useState(20);
+  const [liveAccessExpiresAt, setLiveAccessExpiresAt] = useState(() => {
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    tomorrow.setMinutes(tomorrow.getMinutes() - tomorrow.getTimezoneOffset());
+    return tomorrow.toISOString().slice(0, 16);
+  });
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -74,6 +81,22 @@ export default function QuizForm() {
       setErrorMessage("Please enter a valid number of questions.");
       return;
     }
+
+    if (enableLiveQuiz && (!user || !isAuthenticated)) {
+      setErrorMessage("Please log in to generate a live quiz access code.");
+      return;
+    }
+
+    if (enableLiveQuiz && liveDurationMinutes <= 0) {
+      setErrorMessage("Please enter a valid live quiz duration.");
+      return;
+    }
+
+    if (enableLiveQuiz && new Date(liveAccessExpiresAt).getTime() <= Date.now()) {
+      setErrorMessage("Please choose a future access code expiration time.");
+      return;
+    }
+
     setErrorMessage("");
     setLoading(true);
 
@@ -103,6 +126,11 @@ export default function QuizForm() {
         audienceType,
         difficultyLevel,
         token,
+        liveQuiz: enableLiveQuiz ? "true" : "false",
+        liveDurationMinutes: liveDurationMinutes.toString(),
+        liveAccessExpiresAt: enableLiveQuiz
+          ? new Date(liveAccessExpiresAt).toISOString()
+          : "",
       }).toString();
 
       router.push(`/quiz_display?${queryParams}`);
@@ -133,6 +161,55 @@ export default function QuizForm() {
           setToken={setToken}
           previousToken={previousToken}
         />
+
+        <section className="mt-6 rounded-md border border-slate-200 bg-white p-5">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={enableLiveQuiz}
+              onChange={(event) => setEnableLiveQuiz(event.target.checked)}
+              className="mt-1 h-4 w-4 accent-[#0F2654]"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-[#2C3E50]">
+                Generate this quiz as a live session
+              </span>
+              <span className="mt-1 block text-xs text-gray-500">
+                A shareable access code will be generated as soon as the quiz is
+                created.
+              </span>
+            </span>
+          </label>
+
+          {enableLiveQuiz && (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="block text-sm font-semibold text-[#2C3E50]">
+                Quiz duration minutes
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={liveDurationMinutes}
+                  onChange={(event) =>
+                    setLiveDurationMinutes(Number(event.target.value))
+                  }
+                  className="mt-2 w-full rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring focus:ring-blue-500"
+                />
+              </label>
+              <label className="block text-sm font-semibold text-[#2C3E50]">
+                Access code expiration
+                <input
+                  type="datetime-local"
+                  value={liveAccessExpiresAt}
+                  onChange={(event) =>
+                    setLiveAccessExpiresAt(event.target.value)
+                  }
+                  className="mt-2 w-full rounded-md border border-gray-300 px-4 py-2 focus:outline-none focus:ring focus:ring-blue-500"
+                />
+              </label>
+            </div>
+          )}
+        </section>
 
         {errorMessage && (
           <p className="text-red-500 mb-4 font-medium">{errorMessage}</p>
