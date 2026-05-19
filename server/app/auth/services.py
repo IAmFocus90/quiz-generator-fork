@@ -440,6 +440,7 @@ def get_user_profile_service(current_user: UserOut) -> dict:
         "location": current_user.location,
         "website": current_user.website,
         "avatar_color": current_user.avatar_color,
+        "role": current_user.role,
         "is_active": current_user.is_active,
         "is_verified": current_user.is_verified,
         "created_at": current_user.created_at,

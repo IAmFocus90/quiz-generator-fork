@@ -9,6 +9,8 @@ export const ROUTES = {
 
   DASHBOARD: "/dashboard",
   PROFILE: "/profile",
+  NOTIFICATIONS: "/notifications",
+  ADMIN_NOTIFICATIONS: "/admin/notifications",
 
   NOT_FOUND: "/404",
 };
