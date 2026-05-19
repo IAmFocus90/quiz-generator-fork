@@ -17,6 +17,7 @@ import { saveQuizToHistory } from "../../lib/functions/saveQuizToHistory";
 import { api } from "../../lib/functions/auth";
 import publicApi from "../../lib/functions/publicApi";
 import { TokenService } from "../../lib/functions/tokenService";
+import LiveQuizAccessCodePanel from "../../src/components/live-quiz/LiveQuizAccessCodePanel";
 
 const QuizDisplayPage: React.FC = () => {
   const searchParams = useSearchParams();
@@ -29,6 +30,9 @@ const QuizDisplayPage: React.FC = () => {
   const audienceType = searchParams.get("audienceType") || "students";
   const customInstruction = searchParams.get("customInstruction") || "";
   const token = searchParams.get("token") || "";
+  const liveQuizRequested = searchParams.get("liveQuiz") === "true";
+  const liveDurationMinutes = Number(searchParams.get("liveDurationMinutes")) || 20;
+  const liveAccessExpiresAt = searchParams.get("liveAccessExpiresAt") || "";
 
   const [quizQuestions, setQuizQuestions] = useState<any[]>([]);
   const [userAnswers, setUserAnswers] = useState<(string | number)[]>([]);
@@ -37,8 +41,10 @@ const QuizDisplayPage: React.FC = () => {
   const [quizId, setQuizId] = useState(canonicalQuizId);
   const [quizTitle, setQuizTitle] = useState("");
   const [quizDescription, setQuizDescription] = useState("");
+  const [liveAccessCode, setLiveAccessCode] = useState("");
+  const [liveAccessUrl, setLiveAccessUrl] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const hasFetchedRef = useRef(false); // ✅ Prevent double fetch
+  const hasFetchedRef = useRef(false); 
 
   useEffect(() => {
     if (hasFetchedRef.current) return;
@@ -117,9 +123,17 @@ const QuizDisplayPage: React.FC = () => {
             audience_type: audienceType,
             custom_instruction: customInstruction,
             token,
+            live_quiz_enabled: liveQuizRequested,
+            time_limit_minutes: liveQuizRequested
+              ? liveDurationMinutes
+              : undefined,
+            access_code_expires_at: liveQuizRequested
+              ? liveAccessExpiresAt
+              : undefined,
           };
 
-          const { data } = await publicApi.post(
+          const client = liveQuizRequested ? api : publicApi;
+          const { data } = await client.post(
             "/api/get-questions",
             basePayload,
           );
@@ -127,6 +141,11 @@ const QuizDisplayPage: React.FC = () => {
           if (data?.quiz_id && !data?.ai_down) {
             setQuizId(data.quiz_id);
             resolvedQuizId = data.quiz_id;
+          }
+          if (data?.access_code) {
+            setLiveAccessCode(data.access_code);
+            setLiveAccessUrl(`${window.location.origin}/quiz-access/${data.access_code}`);
+            toast.success("Live quiz access code generated!");
           }
           if (data?.ai_down) {
             toast.error(data.notification_message || "AI model unavailable.", {
@@ -197,6 +216,9 @@ const QuizDisplayPage: React.FC = () => {
     audienceType,
     customInstruction,
     token,
+    liveQuizRequested,
+    liveDurationMinutes,
+    liveAccessExpiresAt,
   ]);
 
   const handleAnswerChange = (index: number, answer: string | number) => {
@@ -323,6 +345,32 @@ const QuizDisplayPage: React.FC = () => {
               {isQuizChecked && <NewQuizButton />}
             </div>
           </section>
+
+          {liveAccessCode && (
+            <section className="rounded-md border border-green-200 bg-green-50 px-4 py-5 shadow-sm">
+              <h2 className="text-lg font-bold text-[#0F2654]">
+                Live quiz is ready
+              </h2>
+              <p className="mt-2 text-sm text-slate-700">
+                Share this access code with participants.
+              </p>
+              <p className="mt-3 text-3xl font-bold tracking-widest text-[#0F2654]">
+                {liveAccessCode}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(liveAccessUrl);
+                  toast.success("Live quiz link copied.");
+                }}
+                className="mt-4 rounded-md border border-[#0F2654] bg-white px-4 py-2 text-sm font-semibold text-[#0F2654] hover:bg-slate-50"
+              >
+                Copy Live Quiz Link
+              </button>
+            </section>
+          )}
+
+          <LiveQuizAccessCodePanel quizId={quizId} />
 
           {/* Quiz Results */}
           {isQuizChecked && (

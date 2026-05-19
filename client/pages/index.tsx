@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/router";
 import Image from "next/image";
+import { Radio, Users } from "lucide-react";
 import NavBar from "../components/home/NavBar";
 import Footer from "../components/home/Footer";
 import PricingSection from "../components/home/PricingSection";
@@ -27,17 +28,34 @@ export default function Home() {
             Create engaging quizzes and get answers in seconds. Make learning
             fun and effortless!
           </p>
-          <button
-            onClick={() => router.push("/generate")}
-            className="
-              bg-[#0F2654] text-white 
-              px-5 py-2 rounded-2xl 
-              text-sm sm:text-base md:text-lg 
-              hover:bg-[#0C2142] transition
-            "
-          >
-            Get Started for Free
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={() => router.push("/generate")}
+              className="
+                inline-flex items-center justify-center gap-2
+                bg-[#0F2654] text-white
+                px-5 py-2 rounded-md
+                text-sm sm:text-base md:text-lg font-semibold
+                hover:bg-[#0C2142] transition
+              "
+            >
+              <Radio size={18} aria-hidden="true" />
+              Generate Live Quiz
+            </button>
+            <button
+              onClick={() => router.push("/quiz-access")}
+              className="
+                inline-flex items-center justify-center gap-2
+                border border-[#0F2654] text-[#0F2654] bg-white
+                px-5 py-2 rounded-md
+                text-sm sm:text-base md:text-lg font-semibold
+                hover:bg-slate-50 transition
+              "
+            >
+              <Users size={18} aria-hidden="true" />
+              Participate in Quiz
+            </button>
+          </div>
         </section>
 
         {/* ───── ILLUSTRATION ───── */}

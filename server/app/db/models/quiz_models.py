@@ -23,6 +23,11 @@ class QuizDB(BaseModel):
 
     owner_id: Optional [str] = None
     canonical_quiz_id: Optional[str] = None
+    created_by: Optional[str] = None
+    live_quiz_enabled: bool = False
+    time_limit_minutes: Optional[int] = None
+    access_code: Optional[str] = None
+    access_code_expires_at: Optional[datetime] = None
 
     created_at: Optional[datetime]  = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -51,6 +56,11 @@ class SeedQuiz(BaseModel):
 
     owner_id: Optional [str] = None
     canonical_quiz_id: Optional[str] = None
+    created_by: Optional[str] = None
+    live_quiz_enabled: bool = False
+    time_limit_minutes: Optional[int] = None
+    access_code: Optional[str] = None
+    access_code_expires_at: Optional[datetime] = None
 
     created_at: Optional[datetime]  = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -64,4 +74,3 @@ class SeedQuiz(BaseModel):
         populate_by_name = True
 
         arbitrary_types_allowed = True
-

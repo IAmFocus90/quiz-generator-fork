@@ -95,6 +95,10 @@ class QuizDocumentV2(BaseModel):
     legacy_quiz_id: Optional[str] = None
     content_fingerprint: Optional[str] = None
     structure_fingerprint: Optional[str] = None
+    live_quiz_enabled: bool = False
+    time_limit_minutes: Optional[int] = None
+    access_code: Optional[str] = None
+    access_code_expires_at: Optional[datetime] = None
     schema_version: int = QUIZ_SCHEMA_VERSION
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
