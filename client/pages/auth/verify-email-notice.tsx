@@ -42,9 +42,7 @@ export default function VerifyEmailNoticePage() {
             <h1 className="text-2xl font-bold text-[#143E6F]">
               Verify your email to continue
             </h1>
-            <p className="mt-3 text-gray-700">
-              Opening verification modal...
-            </p>
+            <p className="mt-3 text-gray-700">Opening verification modal...</p>
           </section>
         </main>
         <Footer />

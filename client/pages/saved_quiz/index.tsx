@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   getSavedQuizzes,
   deleteSavedQuiz,
+  renameSavedQuiz,
 } from "../../lib/functions/savedQuiz";
 import {
   getUserFolders,
@@ -24,8 +25,9 @@ interface QuizQuestion {
 }
 
 interface SavedQuiz {
-  id: string;
-  quiz_id: string;
+  id?: string;
+  _id?: string;
+  quiz_id?: string;
   title: string;
   created_at: string;
   questions?: QuizQuestion[];
@@ -33,13 +35,14 @@ interface SavedQuiz {
 }
 
 interface Folder {
-  id: string;
+  id?: string;
+  _id?: string;
   name: string;
   created_at: string;
 }
 
-const getSavedQuizId = (quiz: Partial<SavedQuiz>) => quiz.id || "";
-const getFolderId = (folder: Partial<Folder>) => folder.id || "";
+const getSavedQuizId = (quiz: Partial<SavedQuiz>) => quiz._id || quiz.id || "";
+const getFolderId = (folder: Partial<Folder>) => folder._id || folder.id || "";
 
 const AddToFolderModal = ({
   isOpen,
@@ -235,11 +238,15 @@ const AddToFolderModal = ({
 const DisplaySavedQuizzesPage: React.FC<{
   savedQuizzes: SavedQuiz[];
   onDeleteClick: (quizId: string) => void;
+  onRenameClick: (quizId: string, title: string) => void;
   token: string;
-}> = ({ savedQuizzes, onDeleteClick, token }) => {
+}> = ({ savedQuizzes, onDeleteClick, onRenameClick, token }) => {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [selectedQuizIds, setSelectedQuizIds] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<SavedQuiz | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
   const router = useRouter();
 
   const toggleSelectQuiz = (quizId: string) => {
@@ -271,8 +278,31 @@ const DisplaySavedQuizzesPage: React.FC<{
 
     localStorage.setItem("saved_quiz_view", JSON.stringify(quiz));
     router.push(
-      `/quiz_display?savedId=${getSavedQuizId(quiz)}&quizId=${quiz.quiz_id}&questionType=${quiz.question_type || "multichoice"}`,
+      `/quiz_display?savedId=${getSavedQuizId(quiz)}&quizId=${quiz.quiz_id || getSavedQuizId(quiz)}&questionType=${quiz.question_type || "multichoice"}`,
     );
+  };
+
+  const handleRenameQuiz = async () => {
+    if (!renameTarget) return;
+    if (!renameTitle.trim()) {
+      toast.error("Please enter a new title.");
+      return;
+    }
+
+    try {
+      setIsRenaming(true);
+      const savedQuizId = getSavedQuizId(renameTarget);
+      await renameSavedQuiz(savedQuizId, renameTitle.trim(), token);
+      toast.success("Quiz renamed successfully!");
+      onRenameClick(savedQuizId, renameTitle.trim());
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to rename quiz.");
+    } finally {
+      setIsRenaming(false);
+      setRenameTarget(null);
+      setRenameTitle("");
+    }
   };
 
   return (
@@ -350,6 +380,15 @@ const DisplaySavedQuizzesPage: React.FC<{
 
                     <div className="flex gap-2">
                       <button
+                        onClick={() => {
+                          setRenameTarget(quiz);
+                          setRenameTitle(quiz.title);
+                        }}
+                        className="text-sm text-[#0a3264] hover:text-[#082952] font-semibold"
+                      >
+                        Rename
+                      </button>
+                      <button
                         onClick={() => setConfirmDeleteId(getSavedQuizId(quiz))}
                         className="text-sm text-red-600 hover:text-red-800 font-semibold"
                       >
@@ -404,6 +443,41 @@ const DisplaySavedQuizzesPage: React.FC<{
           </div>
         </div>
       )}
+
+      {renameTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-lg max-w-sm w-full">
+            <h2 className="text-lg font-bold mb-3 text-[#0a3264]">
+              Rename Saved Quiz
+            </h2>
+            <input
+              type="text"
+              value={renameTitle}
+              onChange={(e) => setRenameTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4"
+              placeholder="Enter a new title"
+            />
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setRenameTarget(null);
+                  setRenameTitle("");
+                }}
+                className="px-4 py-2 rounded-lg border text-gray-600 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRenameQuiz}
+                disabled={isRenaming}
+                className="px-4 py-2 rounded-lg bg-[#0a3264] text-white hover:bg-[#082952] disabled:opacity-50"
+              >
+                {isRenaming ? "Renaming..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -452,6 +526,13 @@ export default function SavedQuizzes() {
             onDeleteClick={(id) =>
               setSavedQuizzes((prev) =>
                 prev.filter((q) => getSavedQuizId(q) !== id),
+              )
+            }
+            onRenameClick={(id, title) =>
+              setSavedQuizzes((prev) =>
+                prev.map((quiz) =>
+                  getSavedQuizId(quiz) === id ? { ...quiz, title } : quiz,
+                ),
               )
             }
             token={token!}

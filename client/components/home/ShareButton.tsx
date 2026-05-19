@@ -13,7 +13,9 @@ const ShareButton = ({ quizId: activeQuizId }: { quizId?: string }) => {
       let id = activeQuizId?.trim() || "";
 
       if (!id) {
-        toast.error("This quiz must exist in the library before it can be shared.");
+        toast.error(
+          "This quiz must exist in the library before it can be shared.",
+        );
         return;
       }
 

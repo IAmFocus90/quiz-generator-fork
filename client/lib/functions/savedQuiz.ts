@@ -52,3 +52,20 @@ export const deleteSavedQuiz = async (quizId: string, token: string) => {
   });
   return res.data;
 };
+
+export const renameSavedQuiz = async (
+  quizId: string,
+  title: string,
+  token: string,
+) => {
+  const res = await api.patch(
+    `${API_URL}/${quizId}/rename`,
+    { title },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+  return res.data;
+};

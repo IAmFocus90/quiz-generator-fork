@@ -99,7 +99,9 @@ const QuizDisplayPage: React.FC = () => {
             answer: q.answer || q.correct_answer,
             question_type: q.question_type || questionType,
           }));
-          setQuizTitle(data.title || `${data.question_type || questionType} Quiz`);
+          setQuizTitle(
+            data.title || `${data.question_type || questionType} Quiz`,
+          );
           setQuizDescription(data.description || "");
           const resolvedSavedQuizId = data.quiz_id || canonicalQuizId || "";
           setQuizId(resolvedSavedQuizId);

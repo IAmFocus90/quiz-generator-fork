@@ -147,7 +147,7 @@ async def get_user_quiz_history_handler(
     request: Request,
     response: Response,
     query: GetUserQuizHistoryQuery = Body(...),
-    current_user: UserOut = Depends(get_verified_user),  
+    current_user: UserOut = Depends(get_verified_user),
 ) -> List[Any]:
     logger.info("Received query: %s", query)
 
@@ -178,8 +178,8 @@ async def download_quiz_handler(
         )
 
     return download_mock_quiz(
-        query.format, 
-        query.question_type, 
+        query.format,
+        query.question_type,
         query.num_question)
 
 

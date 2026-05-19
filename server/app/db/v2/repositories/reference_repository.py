@@ -430,10 +430,14 @@ class ReferenceV2Repository:
         )
         return SavedQuizDocumentV2(**updated)
 
-    async def list_saved_quizzes_for_user(self, user_id: str) -> list[SavedQuizDocumentV2]:
+    async def list_saved_quizzes_for_user(
+        self,
+        user_id: str,
+        limit: int = 500,
+    ) -> list[SavedQuizDocumentV2]:
         documents = await self.saved_quizzes_collection.find(
             {"$and": [{"user_id": user_id}, self._active_query()]}
-        ).to_list(length=500)
+        ).to_list(length=limit)
         return [SavedQuizDocumentV2(**document) for document in documents]
 
     async def get_saved_quiz_by_legacy_id(
@@ -444,7 +448,9 @@ class ReferenceV2Repository:
         query: dict[str, str] = {"legacy_saved_quiz_id": legacy_saved_quiz_id}
         if user_id is not None:
             query["user_id"] = user_id
-        document = await self.saved_quizzes_collection.find_one({"$and": [query, self._active_query()]})
+        document = await self.saved_quizzes_collection.find_one(
+            {"$and": [query, self._active_query()]}
+        )
         return SavedQuizDocumentV2(**document) if document else None
 
     async def get_saved_quiz_by_id(
@@ -459,7 +465,9 @@ class ReferenceV2Repository:
             return None
         if user_id is not None:
             query["user_id"] = user_id
-        document = await self.saved_quizzes_collection.find_one({"$and": [query, self._active_query()]})
+        document = await self.saved_quizzes_collection.find_one(
+            {"$and": [query, self._active_query()]}
+        )
         return SavedQuizDocumentV2(**document) if document else None
 
     async def get_saved_quiz_by_public_id(
@@ -467,14 +475,52 @@ class ReferenceV2Repository:
         saved_quiz_id: str,
         user_id: Optional[str] = None,
     ) -> SavedQuizDocumentV2 | None:
-        return await self.get_saved_quiz_by_legacy_id(saved_quiz_id, user_id=user_id) or await self.get_saved_quiz_by_id(
+        return await self.get_saved_quiz_by_legacy_id(
+            saved_quiz_id,
+            user_id=user_id,
+        ) or await self.get_saved_quiz_by_id(
             saved_quiz_id,
             user_id=user_id,
         )
 
+    async def get_saved_quiz_for_user(
+        self,
+        user_id: str,
+        saved_quiz_id: str,
+    ) -> SavedQuizDocumentV2 | None:
+        return await self.get_saved_quiz_by_public_id(
+            saved_quiz_id,
+            user_id=user_id,
+        )
+
+    async def update_saved_quiz_display_title(
+        self,
+        user_id: str,
+        saved_quiz_id: str,
+        display_title: str,
+    ) -> SavedQuizDocumentV2 | None:
+        saved_quiz = await self.get_saved_quiz_by_public_id(
+            saved_quiz_id,
+            user_id=user_id,
+        )
+        if saved_quiz is None:
+            return None
+        updated = await self.saved_quizzes_collection.find_one_and_update(
+            {"_id": saved_quiz.id, **self._active_query()},
+            {"$set": {"display_title": display_title}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return SavedQuizDocumentV2(**updated) if updated else None
+
     async def delete_saved_quiz(self, user_id: str, quiz_id: str):
         await self.saved_quizzes_collection.update_one(
             {"user_id": user_id, "quiz_id": quiz_id, **self._active_query()},
+            {"$set": {"deleted_at": datetime.utcnow()}},
+        )
+
+    async def delete_saved_quiz_by_legacy_id(self, legacy_saved_quiz_id: str):
+        await self.saved_quizzes_collection.update_one(
+            {"legacy_saved_quiz_id": legacy_saved_quiz_id, **self._active_query()},
             {"$set": {"deleted_at": datetime.utcnow()}},
         )
 
@@ -497,11 +543,31 @@ class ReferenceV2Repository:
         )
         return result.modified_count
 
-    async def upsert_quiz_history(self, quiz_history: QuizHistoryDocumentV2) -> QuizHistoryDocumentV2:
+    async def delete_saved_quiz_for_user(
+        self,
+        user_id: str,
+        saved_quiz_id: str,
+    ) -> bool:
+        saved_quiz = await self.get_saved_quiz_by_public_id(
+            saved_quiz_id,
+            user_id=user_id,
+        )
+        if saved_quiz is None:
+            return False
+        return (
+            await self.delete_saved_quiz_by_id(str(saved_quiz.id), user_id=user_id)
+        ) > 0
+
+    async def upsert_quiz_history(
+        self,
+        quiz_history: QuizHistoryDocumentV2,
+    ) -> QuizHistoryDocumentV2:
         payload = quiz_history.model_dump(by_alias=True)
         payload.pop("_id", None)
         created_at = payload.pop("created_at")
-        existing = await self.quiz_history_collection.find_one({"legacy_history_id": quiz_history.legacy_history_id})
+        existing = await self.quiz_history_collection.find_one(
+            {"legacy_history_id": quiz_history.legacy_history_id}
+        )
         if existing is not None and existing.get("deleted_at") is not None:
             payload["deleted_at"] = existing["deleted_at"]
         updated = await self.quiz_history_collection.find_one_and_update(
@@ -512,11 +578,71 @@ class ReferenceV2Repository:
         )
         return QuizHistoryDocumentV2(**updated)
 
-    async def list_quiz_history_for_user(self, user_id: str) -> list[QuizHistoryDocumentV2]:
+    async def get_quiz_history_by_legacy_id(
+        self,
+        history_id: str,
+        user_id: Optional[str] = None,
+    ) -> QuizHistoryDocumentV2 | None:
+        query: dict[str, str] = {"legacy_history_id": history_id}
+        if user_id is not None:
+            query["user_id"] = user_id
+        document = await self.quiz_history_collection.find_one(
+            {"$and": [query, self._active_query()]}
+        )
+        return QuizHistoryDocumentV2(**document) if document else None
+
+    async def get_quiz_history_by_id(
+        self,
+        history_id: str,
+        user_id: Optional[str] = None,
+    ) -> QuizHistoryDocumentV2 | None:
+        query: dict[str, object] = {}
+        try:
+            query["_id"] = ObjectId(history_id)
+        except InvalidId:
+            return None
+        if user_id is not None:
+            query["user_id"] = user_id
+        document = await self.quiz_history_collection.find_one(
+            {"$and": [query, self._active_query()]}
+        )
+        return QuizHistoryDocumentV2(**document) if document else None
+
+    async def get_quiz_history_by_public_id(
+        self,
+        history_id: str,
+        user_id: Optional[str] = None,
+    ) -> QuizHistoryDocumentV2 | None:
+        return await self.get_quiz_history_by_legacy_id(
+            history_id,
+            user_id=user_id,
+        ) or await self.get_quiz_history_by_id(history_id, user_id=user_id)
+
+    async def get_quiz_history_for_user(
+        self,
+        user_id: str,
+        history_id: str,
+    ) -> QuizHistoryDocumentV2 | None:
+        return await self.get_quiz_history_by_public_id(
+            history_id,
+            user_id=user_id,
+        )
+
+    async def list_quiz_history_for_user(
+        self,
+        user_id: str,
+        limit: int = 500,
+    ) -> list[QuizHistoryDocumentV2]:
         documents = await self.quiz_history_collection.find(
             {"$and": [{"user_id": user_id}, self._active_query()]}
-        ).to_list(length=500)
+        ).to_list(length=limit)
         return [QuizHistoryDocumentV2(**document) for document in documents]
+
+    async def delete_quiz_history_by_legacy_id(self, legacy_history_id: str):
+        await self.quiz_history_collection.update_one(
+            {"legacy_history_id": legacy_history_id, **self._active_query()},
+            {"$set": {"deleted_at": datetime.utcnow()}},
+        )
 
     async def soft_delete_quiz_history_by_id(
         self,
@@ -536,3 +662,21 @@ class ReferenceV2Repository:
             {"$set": {"deleted_at": datetime.utcnow()}},
         )
         return result.modified_count
+
+    async def delete_quiz_history_for_user(
+        self,
+        user_id: str,
+        history_id: str,
+    ) -> bool:
+        history = await self.get_quiz_history_by_public_id(
+            history_id,
+            user_id=user_id,
+        )
+        if history is None:
+            return False
+        return (
+            await self.soft_delete_quiz_history_by_id(
+                str(history.id),
+                user_id=user_id,
+            )
+        ) > 0

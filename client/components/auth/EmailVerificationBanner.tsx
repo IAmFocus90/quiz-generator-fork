@@ -69,7 +69,8 @@ export default function EmailVerificationBanner() {
       <div className="sticky top-0 z-[120] w-full border-b border-amber-300 bg-amber-100 px-4 py-3 shadow-sm">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
           <p className="text-sm font-medium text-amber-900">
-            Your email is not verified. Verify your email to unlock all features.
+            Your email is not verified. Verify your email to unlock all
+            features.
           </p>
 
           <div className="flex items-center gap-2">
@@ -83,8 +84,8 @@ export default function EmailVerificationBanner() {
               {cooldown > 0
                 ? `Resend (${cooldown}s)`
                 : isSending
-                ? "Sending..."
-                : "Resend Email"}
+                  ? "Sending..."
+                  : "Resend Email"}
             </button>
 
             {/* Verify Now */}
@@ -119,7 +120,7 @@ export default function EmailVerificationBanner() {
           await refreshUser?.();
 
           setShowModal(false);
-          setDismissed(true); 
+          setDismissed(true);
         }}
       />
     </>
