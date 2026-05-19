@@ -14,6 +14,7 @@ import NavGenerateQuizButton from "./NavGenerateQuizButton";
 import Sidebar from "./Sidebar";
 import BrowseModal from "./modals/BrowseModal";
 import { useAuth } from "../../contexts/authContext";
+import NotificationBell from "../notifications/NotificationBell";
 
 const NavBar: React.FC = () => {
   const [isSignUpOpen, setIsSignUpOpen] = useState(false);
@@ -74,8 +75,9 @@ const NavBar: React.FC = () => {
               <>
                 {isAuthenticated ? (
                   <>
+                    <NotificationBell />
                     <span className="text-[#0F2654] font-medium">
-                      Hi, {user?.username || "User"} 👋
+                      Hi, {user?.username || "User"}
                     </span>
                     <button
                       onClick={logout}
@@ -124,8 +126,11 @@ const NavBar: React.FC = () => {
               {isAuthenticated ? (
                 <>
                   <span className="text-[#0F2654] text-center">
-                    Hi, {user?.username || "User"} 👋
+                    Hi, {user?.username || "User"}
                   </span>
+                  <div className="flex justify-center">
+                    <NotificationBell />
+                  </div>
                   <button
                     onClick={() => {
                       logout();

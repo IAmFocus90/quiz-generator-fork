@@ -9,6 +9,7 @@ export interface User {
   location?: string;
   website?: string;
   avatar_color?: string;
+  role?: "user" | "admin" | string;
   createdAt?: string;
   updatedAt?: string;
 }
