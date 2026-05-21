@@ -2,9 +2,9 @@ from datetime import datetime
 
 import pytest
 
-from ...app.db.crud.quiz_write_service import CanonicalQuizWriteService
-from ...app.db.v2.models.quiz_models import QuizCreateV2, QuizMetadataUpdateV2, QuizQuestionsUpdateV2
-from ...app.db.v2.repositories.quiz_repository import QuizV2Repository
+from ...app.quiz.services.canonical_quiz_service import CanonicalQuizWriteService
+from ...app.quiz.repositories.v2.models.quiz_models import QuizCreateV2, QuizMetadataUpdateV2, QuizQuestionsUpdateV2
+from ...app.quiz.repositories.v2.repositories.quiz_repository import QuizV2Repository
 
 
 @pytest.mark.asyncio

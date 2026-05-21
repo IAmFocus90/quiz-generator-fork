@@ -13,9 +13,9 @@ os.environ.setdefault("share_url", "http://localhost")
 os.environ.setdefault("db_name", "test_db")
 os.environ.setdefault("mongo_url", "mongodb://localhost:27017")
 
-from ....app.db.v2.migration.backfill_engine import build_migration_context
-from ....app.db.v2.migration.config import BackfillConfig
-from ....app.db.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
+from server.scripts.migrations.v2.migration.backfill_engine import build_migration_context
+from server.scripts.migrations.v2.migration.config import BackfillConfig
+from ....app.quiz.repositories.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
 
 
 @pytest_asyncio.fixture(scope="function")

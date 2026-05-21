@@ -13,24 +13,24 @@ from fastapi.responses import StreamingResponse
 
 from io import BytesIO
 
-from server.main import download_quiz_handler
-from server.main import download_quiz_from_payload_handler
+from server.app.quiz.routes.downloads import download_quiz_handler
+from server.app.quiz.routes.downloads import download_quiz_from_payload_handler
 from server.main import limiter
-from server.schemas.model import DownloadQuizRequestModel
-from server.schemas.query import DownloadQuizQuery
+from server.app.quiz.schemas.download_schemas import DownloadQuizRequestModel
+from server.app.quiz.schemas.download_query import DownloadQuizQuery
 
 from docx import Document
 
 from pypdf import PdfReader
 
-from server.api.v1.crud.download.download_quiz import (
+from server.app.quiz.services.download_service import (
     download_mock_quiz,
     download_quiz_by_id,
 )
-from server.api.v1.crud.generate_docx import generate_docx
-from server.api.v1.crud.generate_json import generate_json
-from server.api.v1.crud.generate_pdf import generate_pdf
-from server.api.v1.crud.generate_txt import generate_txt
+from server.app.quiz.utils.generate_docx import generate_docx
+from server.app.quiz.utils.generate_json import generate_json
+from server.app.quiz.utils.generate_pdf import generate_pdf
+from server.app.quiz.utils.generate_txt import generate_txt
 
 
 @pytest.fixture(autouse=True)
@@ -62,19 +62,19 @@ def mock_generate_file(data):
 
 ])
 
-@patch("server.api.v1.crud.download.download_quiz.quiz_data_multiple_choice", new=[{"q": "A"}] * 10)
+@patch("server.app.quiz.services.download_service.mock_multiple_choice_questions", return_value=[{"q": "A"}] * 10)
 
-@patch("server.api.v1.crud.download.download_quiz.generate_txt", side_effect=mock_generate_file)
+@patch("server.app.quiz.services.download_service.generate_txt", side_effect=mock_generate_file)
 
-@patch("server.api.v1.crud.download.download_quiz.generate_json", side_effect=mock_generate_file)
+@patch("server.app.quiz.services.download_service.generate_json", side_effect=mock_generate_file)
 
-@patch("server.api.v1.crud.download.download_quiz.generate_pdf", side_effect=mock_generate_file)
+@patch("server.app.quiz.services.download_service.generate_pdf", side_effect=mock_generate_file)
 
-@patch("server.api.v1.crud.download.download_quiz.generate_docx", side_effect=mock_generate_file)
+@patch("server.app.quiz.services.download_service.generate_docx", side_effect=mock_generate_file)
 
 def test_download_quiz_valid_formats(
 
-    mock_txt, mock_json, mock_pdf, mock_docx, format, content_type
+    mock_docx, mock_pdf, mock_json, mock_txt, mock_questions, format, content_type
 
 ):
 
@@ -366,8 +366,6 @@ async def test_download_quiz_from_payload_supports_current_displayed_quiz():
 @pytest.mark.asyncio
 async def test_download_quiz_by_id_reads_canonical_v2_quiz_and_normalizes_answers():
     v2_collection = AsyncMock()
-    legacy_ai_collection = AsyncMock()
-    legacy_manual_collection = AsyncMock()
 
     v2_collection.find_one.return_value = {
         "_id": ObjectId("69e78f93594339fd166131ea"),
@@ -382,20 +380,11 @@ async def test_download_quiz_by_id_reads_canonical_v2_quiz_and_normalizes_answer
             }
         ],
     }
-    legacy_ai_collection.find_one.return_value = None
-    legacy_manual_collection.find_one.return_value = None
-
     with patch(
-        "server.api.v1.crud.download.download_quiz.get_quizzes_v2_collection",
+        "server.app.quiz.services.download_service.get_quizzes_v2_collection",
         return_value=v2_collection,
     ), patch(
-        "server.api.v1.crud.download.download_quiz.get_ai_generated_quizzes_collection",
-        return_value=legacy_ai_collection,
-    ), patch(
-        "server.api.v1.crud.download.download_quiz.get_quizzes_collection",
-        return_value=legacy_manual_collection,
-    ), patch(
-        "server.api.v1.crud.download.download_quiz.generate_txt",
+        "server.app.quiz.services.download_service.generate_txt",
         side_effect=generate_txt,
     ):
         response = await download_quiz_by_id(

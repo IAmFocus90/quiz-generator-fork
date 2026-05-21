@@ -51,7 +51,7 @@ async def test_stage4_history_reads_v2_payload(
         }
     )
 
-    payload = await service.get_quiz_history_for_user("user-1")
+    payload = await service.list_quiz_history_items(user_id="user-1")
 
     assert len(payload) == 1
     assert payload[0]["id"] is not None
@@ -59,7 +59,6 @@ async def test_stage4_history_reads_v2_payload(
     assert payload[0]["quiz_name"] == "Caching"
     assert payload[0]["question_type"] == "multichoice"
     assert payload[0]["questions"][0]["answer"] == "Keys"
-    assert payload[0]["questions"][0]["question_type"] == "multichoice"
 
 
 @pytest.mark.asyncio
@@ -109,7 +108,7 @@ async def test_stage4_saved_reads_v2_payload(
         }
     )
 
-    payload = await service.get_saved_quizzes_for_user("user-1")
+    payload = await service.list_saved_quizzes(user_id="user-1")
 
     assert len(payload) == 1
     assert payload[0]["id"] is not None

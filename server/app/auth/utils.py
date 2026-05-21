@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 
 from passlib.context import CryptContext
 
-from server.app.db.core.config import settings
+from server.app.core.config import settings
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -31,20 +31,23 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 
-def generate_verification_token(email: str) -> str:
+def generate_verification_token(email: str, *, purpose: str = "email_verification") -> str:
 
     expire = datetime.now(timezone.utc) + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
 
-    payload = {"sub": email, "exp": expire}
+    now = datetime.now(timezone.utc)
+    payload = {"sub": email, "purpose": purpose, "iat": now, "nbf": now, "exp": expire}
 
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def decode_verification_token(token: str):
+def decode_verification_token(token: str, *, purpose: str | None = None):
 
     try:
 
-        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=settings.JWT_ALGORITHM)
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        if purpose and payload.get("purpose") != purpose:
+            raise HTTPException(status_code=400, detail="Invalid token purpose")
 
         return payload["sub"]
 
@@ -67,7 +70,12 @@ def verify_token_hash(plain_token: str, hashed_token: str) -> bool:
     return pwd_context.verify(plain_token, hashed_token)
 
 
-def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)) -> str:
+def create_access_token(
+    data: dict,
+    expires_delta: timedelta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    *,
+    session_id: str | None = None,
+) -> str:
 
     if not settings.JWT_SECRET:
 
@@ -76,22 +84,27 @@ def create_access_token(data: dict, expires_delta: timedelta = timedelta(minutes
 
     to_encode = data.copy()
 
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    now = datetime.now(timezone.utc)
+    expire = now + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
     to_encode.update({
 
         "exp": expire,
+        "iat": now,
+        "nbf": now,
 
         "jti": str(uuid.uuid4()),
 
         "type": "access",
 
     })
+    if session_id:
+        to_encode["sid"] = session_id
 
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh_token(data: dict) -> str:
+def create_refresh_token(data: dict, *, session_id: str | None = None) -> str:
 
     if not settings.JWT_SECRET:
 
@@ -100,7 +113,8 @@ def create_refresh_token(data: dict) -> str:
 
     to_encode = data.copy()
 
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
 
     jti = str(uuid.uuid4())
@@ -108,12 +122,16 @@ def create_refresh_token(data: dict) -> str:
     to_encode.update({
 
         "exp": expire,
+        "iat": now,
+        "nbf": now,
 
         "jti": jti,
 
         "type": "refresh"
 
     })
+    if session_id:
+        to_encode["sid"] = session_id
 
 
     token = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)

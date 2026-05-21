@@ -3,10 +3,11 @@ from motor.motor_asyncio import AsyncIOMotorCollection
 from .db.core.connection import quizzes_collection, users_collection, quiz_categories_collection
 from .seed_data import seed_quizzes, seed_user_data
 from datetime import datetime, timezone
-from .db.utils import hash_password
-from .db.models.user_models import SeedUser
-from .db.models.quiz_models import SeedQuiz
-from .db.seed_data.seed_all_categories import seed_all
+from .core.security import hash_password
+from .quiz.schemas.quiz_schemas import NewQuizSchema as SeedQuiz
+from .quiz.seed_data.seed_all_categories import seed_all
+from .users.identity import build_profile, default_user_status, normalize_email, normalize_username
+from .users.models import SeedUser
 from typing import List
 
 
@@ -36,9 +37,15 @@ async def seed_users_collection(collection: AsyncIOMotorCollection, seed_data: L
             try:
                 user_data["hashed_password"] = hash_password(user_data.pop("password"))
                 user_data["is_active"] = True
+                user_data["is_verified"] = user_data.get("is_verified", False)
+                user_data["status"] = default_user_status(user_data["is_verified"])
                 user_data["role"] = "user"
+                user_data["email_normalized"] = normalize_email(user_data["email"])
+                user_data["username_normalized"] = normalize_username(user_data["username"])
+                user_data["profile"] = build_profile(full_name=user_data.pop("full_name", None))
+                user_data["schema_version"] = 1
                 user_data["created_at"] = datetime.now(timezone.utc)
-                user_data["updated_at"] = None
+                user_data["updated_at"] = datetime.now(timezone.utc)
                 user = SeedUser(**user_data)
                 await collection.insert_one(user.model_dump())
                 print(f"User '{user.email}' inserted successfully.")
@@ -67,9 +74,15 @@ async def restoreSeed_users_collection(collection: AsyncIOMotorCollection, seed_
         try:
             user_data["hashed_password"] = hash_password(user_data.pop("password"))  
             user_data["is_active"] = True
+            user_data["is_verified"] = user_data.get("is_verified", False)
+            user_data["status"] = default_user_status(user_data["is_verified"])
             user_data["role"] = "user"
+            user_data["email_normalized"] = normalize_email(user_data["email"])
+            user_data["username_normalized"] = normalize_username(user_data["username"])
+            user_data["profile"] = build_profile(full_name=user_data.pop("full_name", None))
+            user_data["schema_version"] = 1
             user_data["created_at"] = datetime.now(timezone.utc)
-            user_data["updated_at"] = None
+            user_data["updated_at"] = datetime.now(timezone.utc)
             user = SeedUser(**user_data)
             await collection.insert_one(user.model_dump())
             print(f"User '{user.email}' inserted successfully.")

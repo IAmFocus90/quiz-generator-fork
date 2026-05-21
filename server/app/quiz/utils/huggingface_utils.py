@@ -14,7 +14,7 @@ from huggingface_hub import InferenceClient
 
 from dotenv import load_dotenv
 
-from ....app.db.crud.token_crud import get_user_token
+from server.app.quiz.repositories.token_repository import get_user_token
 
 
 env_path = Path(__file__).resolve().parents[3] / ".env"
