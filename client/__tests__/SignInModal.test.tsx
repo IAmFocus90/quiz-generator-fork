@@ -1,39 +1,82 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
-import SignInModal from '../components/(dashboard)/user/SignInModal';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import SignInModal from '@features/auth/components/SignInModal';
+
+const mockRouterPush = jest.fn();
+const mockAuthLogin = jest.fn();
+
+jest.mock('next/router', () => ({
+  useRouter: () => ({
+    push: mockRouterPush,
+  }),
+}));
+
+jest.mock('@features/auth/context/authContext', () => ({
+  useAuth: () => ({
+    login: mockAuthLogin,
+  }),
+}));
+
+jest.mock('@features/auth/api/authApi', () => ({
+  login: jest.fn().mockResolvedValue({
+    access_token: 'test-access-token',
+    token_type: 'bearer',
+  }),
+}));
 
 
 
 
 describe('SignInModal', () => {
   const mockOnClose = jest.fn();
+  const mockSwitchToSignUp = jest.fn();
 
   beforeEach(() => {
     mockOnClose.mockClear(); 
+    mockSwitchToSignUp.mockClear();
+    mockRouterPush.mockClear();
+    mockAuthLogin.mockClear();
   });
 
   test('renders the modal when isOpen is true', () => {
-    render(<SignInModal isOpen={true} onClose={mockOnClose} />);
+    render(
+      <SignInModal
+        isOpen={true}
+        onClose={mockOnClose}
+        switchToSignUp={mockSwitchToSignUp}
+      />,
+    );
     
     
     expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter username or email')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter password')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('email@example.com or username')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument();
   });
 
   test('does not render the modal when isOpen is false', () => {
-    render(<SignInModal isOpen={false} onClose={mockOnClose} />);
+    render(
+      <SignInModal
+        isOpen={false}
+        onClose={mockOnClose}
+        switchToSignUp={mockSwitchToSignUp}
+      />,
+    );
     
     expect(screen.queryByRole('heading', { name: /sign in/i })).not.toBeInTheDocument();
   });
 
   test('updates input fields on change', () => {
-    render(<SignInModal isOpen={true} onClose={mockOnClose} />);
+    render(
+      <SignInModal
+        isOpen={true}
+        onClose={mockOnClose}
+        switchToSignUp={mockSwitchToSignUp}
+      />,
+    );
     
-    const usernameInput = screen.getByPlaceholderText('Enter username or email');
-    const passwordInput = screen.getByPlaceholderText('Enter password');
+    const usernameInput = screen.getByPlaceholderText('email@example.com or username');
+    const passwordInput = screen.getByPlaceholderText('Enter your password');
 
     fireEvent.change(usernameInput, { target: { value: 'testuser@example.com' } });
     fireEvent.change(passwordInput, { target: { value: 'password123' } });
@@ -42,11 +85,17 @@ describe('SignInModal', () => {
     expect(passwordInput).toHaveValue('password123');
   });
 
-  test('calls onClose when form is submitted', () => {
-    render(<SignInModal isOpen={true} onClose={mockOnClose} />);
+  test('calls onClose when form is submitted', async () => {
+    render(
+      <SignInModal
+        isOpen={true}
+        onClose={mockOnClose}
+        switchToSignUp={mockSwitchToSignUp}
+      />,
+    );
     
-    const usernameInput = screen.getByPlaceholderText('Enter username or email');
-    const passwordInput = screen.getByPlaceholderText('Enter password');
+    const usernameInput = screen.getByPlaceholderText('email@example.com or username');
+    const passwordInput = screen.getByPlaceholderText('Enter your password');
     const signInButton = screen.getByRole('button', { name: /sign in/i });
 
     
@@ -56,17 +105,21 @@ describe('SignInModal', () => {
     
     fireEvent.click(signInButton);
 
-    
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(mockOnClose).toHaveBeenCalledTimes(1);
+    });
   });
 
   test('calls onClose when close button is clicked', () => {
-    render(<SignInModal isOpen={true} onClose={mockOnClose} />);
+    const { container } = render(
+      <SignInModal
+        isOpen={true}
+        onClose={mockOnClose}
+        switchToSignUp={mockSwitchToSignUp}
+      />,
+    );
 
-    const closeButton = screen.getByRole('button', { name: /close/i });
-    
-    
-    fireEvent.click(closeButton);
+    fireEvent.click(container.firstChild as Element);
 
     
     expect(mockOnClose).toHaveBeenCalledTimes(1);

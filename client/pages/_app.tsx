@@ -2,12 +2,12 @@ import type { AppProps } from "next/app";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { Toaster } from "react-hot-toast";
-import SplashScreen from "../components/splash_screen/SplashScreen";
-import { AuthProvider } from "../contexts/authContext";
-import SignInModal from "../components/auth/SignInModal";
-import { ROUTES } from "../constants/patterns/routes";
-import EmailVerificationBanner from "../components/auth/EmailVerificationBanner";
-import "../components/ui/global.css";
+import SplashScreen from "@app/components/SplashScreen";
+import { AuthProvider } from "@features/auth/context/authContext";
+import SignInModal from "@features/auth/components/SignInModal";
+import { ROUTES } from "@shared/config/patterns/routes";
+import EmailVerificationBanner from "@features/auth/components/EmailVerificationBanner";
+import "@shared/styles/global.css";
 
 export default function MyApp({ Component, pageProps }: AppProps) {
   const [showSignInModal, setShowSignInModal] = useState(false);

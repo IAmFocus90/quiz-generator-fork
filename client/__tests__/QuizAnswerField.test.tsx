@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import QuizAnswerField from "../components/home/QuizAnswerField";
+import QuizAnswerField from "@features/quiz/components/QuizAnswerField";
 
 describe("QuizAnswerField", () => {
   test("clicking multichoice option text selects the radio option", () => {

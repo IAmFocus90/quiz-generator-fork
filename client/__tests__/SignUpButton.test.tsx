@@ -1,22 +1,24 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import SignUpButton from '../components/SignUpButton';
+import SignUpButton from '@features/quiz/components/SignUpButton';
 
 
 describe('SignUpButton', () => {
+  const mockOnOpen = jest.fn();
+
+  beforeEach(() => {
+    mockOnOpen.mockClear();
+  });
+
   it('renders the sign-up button', () => {
-    render(<SignUpButton />);
+    render(<SignUpButton onOpen={mockOnOpen} />);
     expect(screen.getByRole('button', { name: /sign up/i })).toBeInTheDocument();
   });
 
-  
-
-  it('closes the modal when the modal close button is clicked', () => {
-    render(<SignUpButton />);
+  it('calls onOpen when clicked', () => {
+    render(<SignUpButton onOpen={mockOnOpen} />);
     const button = screen.getByRole('button', { name: /sign up/i });
     fireEvent.click(button);
-    const closeButton = screen.getByRole('button', { name: /×/i });
-    fireEvent.click(closeButton);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(mockOnOpen).toHaveBeenCalledTimes(1);
   });
 });
