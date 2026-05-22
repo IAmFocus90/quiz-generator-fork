@@ -154,6 +154,42 @@ class QuizV2Repository:
         )
         return QuizDocumentV2(**stored)
 
+    async def upsert_by_legacy_mapping_with_status(
+        self,
+        quiz: QuizDocumentV2,
+    ) -> tuple[QuizDocumentV2, str]:
+        payload = quiz.model_dump(by_alias=True)
+        payload.pop("_id", None)
+        lookup = {
+            "legacy_source_collection": quiz.legacy_source_collection,
+            "legacy_quiz_id": quiz.legacy_quiz_id,
+        }
+        existing = await self.collection.find_one(lookup)
+        if existing:
+            existing_payload = dict(existing)
+            existing_payload.pop("_id", None)
+            existing_payload.pop("created_at", None)
+            existing_payload.pop("updated_at", None)
+            comparable_payload = dict(payload)
+            comparable_payload.pop("created_at", None)
+            comparable_payload.pop("updated_at", None)
+            if existing_payload == comparable_payload:
+                return QuizDocumentV2(**existing), "unchanged"
+            if existing.get("created_at") is not None:
+                payload["created_at"] = existing["created_at"]
+
+        updated = await self.collection.find_one_and_update(
+            lookup,
+            {"$set": payload},
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        if updated:
+            return QuizDocumentV2(**updated), "updated" if existing else "created"
+
+        stored = await self.collection.find_one(lookup)
+        return QuizDocumentV2(**stored), "updated" if existing else "created"
+
     async def find_or_create_by_fingerprint(self, quiz: QuizDocumentV2) -> QuizDocumentV2:
         existing = await self.find_by_content_fingerprint(quiz.content_fingerprint)
         if existing:

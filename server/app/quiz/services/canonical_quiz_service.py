@@ -145,6 +145,12 @@ class CanonicalQuizWriteService:
     async def upsert_quiz_v2_by_legacy_mapping(self, quiz_document: QuizDocumentV2) -> QuizDocumentV2:
         return await self.repository.upsert_by_legacy_mapping(quiz_document)
 
+    async def upsert_quiz_v2_by_legacy_mapping_with_status(
+        self,
+        quiz_document: QuizDocumentV2,
+    ) -> tuple[QuizDocumentV2, str]:
+        return await self.repository.upsert_by_legacy_mapping_with_status(quiz_document)
+
     async def find_or_create_quiz_v2_by_fingerprint(self, quiz_document: QuizDocumentV2) -> QuizDocumentV2:
         return await self.repository.find_or_create_by_fingerprint(quiz_document)
 

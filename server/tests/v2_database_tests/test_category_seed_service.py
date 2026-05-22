@@ -15,7 +15,7 @@ async def test_category_seed_service_upserts_categorized_v2_quiz(test_db):
     entry = get_taxonomy_entry("Science", "Biology")
     assert entry is not None
 
-    await service.seed_group(
+    _, first_status = await service.seed_group(
         entry,
         "short-answer",
         [
@@ -26,7 +26,7 @@ async def test_category_seed_service_upserts_categorized_v2_quiz(test_db):
             }
         ],
     )
-    await service.seed_group(
+    _, second_status = await service.seed_group(
         entry,
         "short-answer",
         [
@@ -40,6 +40,8 @@ async def test_category_seed_service_upserts_categorized_v2_quiz(test_db):
 
     docs = await test_db["quizzes_v2"].find({}).to_list(length=10)
 
+    assert first_status == "created"
+    assert second_status == "unchanged"
     assert len(docs) == 1
     assert docs[0]["title"] == "Biology: Short Answer Quiz"
     assert docs[0]["source"] == "seed"

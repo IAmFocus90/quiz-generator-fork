@@ -5,7 +5,9 @@ async def seed_all():
     stats = await seed_all_category_quizzes()
     print(
         "Category seed sync completed: "
-        f"{stats['created_or_updated']} V2 quizzes created/updated, "
+        f"{stats['created']} created, "
+        f"{stats['updated']} updated, "
+        f"{stats['unchanged']} unchanged, "
         f"{stats['skipped']} skipped, "
         f"{stats['errors']} errors."
     )

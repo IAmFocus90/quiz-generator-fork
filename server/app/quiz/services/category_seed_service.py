@@ -86,7 +86,7 @@ class CategorySeedService:
             get_quiz_history_v2_collection(),
         )
 
-        stats = {"created_or_updated": 0, "skipped": 0, "errors": 0}
+        stats = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0, "errors": 0}
         for category_dir in sorted(path for path in base_dir.iterdir() if path.is_dir()):
             category = display_name_from_path(category_dir.name)
             for subcategory_dir in sorted(path for path in category_dir.iterdir() if path.is_dir()):
@@ -111,8 +111,8 @@ class CategorySeedService:
 
                 for quiz_type, question_group in grouped.items():
                     try:
-                        await self.seed_group(entry, quiz_type, question_group)
-                        stats["created_or_updated"] += 1
+                        _, status = await self.seed_group(entry, quiz_type, question_group)
+                        stats[status] += 1
                     except Exception as exc:
                         stats["errors"] += 1
                         print(
@@ -126,7 +126,7 @@ class CategorySeedService:
         entry: TaxonomyEntry,
         quiz_type: str,
         questions: list[dict[str, Any]],
-    ):
+    ) -> tuple[Any, str]:
         classification = build_classification(
             entry,
             quiz_type,
@@ -157,7 +157,7 @@ class CategorySeedService:
                 f"{normalize_quiz_type(quiz_type)}"
             ),
         )
-        return await self.canonical_service.upsert_quiz_v2_by_legacy_mapping(quiz_document)
+        return await self.canonical_service.upsert_quiz_v2_by_legacy_mapping_with_status(quiz_document)
 
 
 async def seed_all_category_quizzes() -> dict[str, int]:
