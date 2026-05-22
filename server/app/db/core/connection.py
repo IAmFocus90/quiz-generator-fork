@@ -29,7 +29,6 @@ ai_generated_quizzes_collection = database["ai_generated_quizzes"]
 live_quiz_sessions_collection = database["live_quiz_sessions"]
 
 
-quiz_categories_collection = database["quizzes_category"]
 folders_collection = database["folders"]
 saved_quizzes_collection = database["saved_quizzes"]
 notifications_collection = database["notifications"]
@@ -83,6 +82,8 @@ async def ensure_live_quiz_session_indexes(
 async def drop_removed_collections():
     if "blacklisted_tokens" in await database.list_collection_names():
         await database.drop_collection("blacklisted_tokens")
+    if "quizzes_category" in await database.list_collection_names():
+        await database.drop_collection("quizzes_category")
 
 
 async def startUp():

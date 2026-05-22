@@ -24,6 +24,14 @@ async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dic
     live_access_code = None
     live_access_code_expires_at = None
     live_time_limit_minutes = None
+    category_metadata = {
+        "category": None,
+        "category_slug": None,
+        "subcategory": None,
+        "subcategory_slug": None,
+        "tags": [],
+        "classification": None,
+    }
 
     try:
         ai_payload = request.model_dump()
@@ -53,6 +61,7 @@ async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dic
             "num_questions": request.num_questions,
             "audience_type": request.audience_type,
             "custom_instruction": request.custom_instruction,
+            "token": request.token,
             "questions": final_questions,
             "user_id": user_id,
 
@@ -87,6 +96,14 @@ async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dic
             save_result = await save_ai_generated_quiz(ai_quiz_payload)
             if save_result and "quiz_id" in save_result:
                 quiz_id = save_result.get("quiz_id")
+                category_metadata = {
+                    "category": save_result.get("category"),
+                    "category_slug": save_result.get("category_slug"),
+                    "subcategory": save_result.get("subcategory"),
+                    "subcategory_slug": save_result.get("subcategory_slug"),
+                    "tags": save_result.get("tags") or [],
+                    "classification": save_result.get("classification"),
+                }
         except Exception as db_error:
             logging.error(f"Failed to save AI-generated quiz to DB: {db_error}")
 
@@ -106,12 +123,21 @@ async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dic
                         "num_questions": request.num_questions,
                         "audience_type": request.audience_type,
                         "custom_instruction": request.custom_instruction,
+                        "token": request.token,
                         "questions": final_questions,
                         "user_id": user_id,
                     }
                 )
                 if save_result and "quiz_id" in save_result:
                     quiz_id = save_result.get("quiz_id")
+                    category_metadata = {
+                        "category": save_result.get("category"),
+                        "category_slug": save_result.get("category_slug"),
+                        "subcategory": save_result.get("subcategory"),
+                        "subcategory_slug": save_result.get("subcategory_slug"),
+                        "tags": save_result.get("tags") or [],
+                        "classification": save_result.get("classification"),
+                    }
             except Exception as db_error:
                 logging.error(f"Failed to save live quiz before access-code generation: {db_error}")
         if not quiz_id:
@@ -151,6 +177,7 @@ async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dic
         "access_code": live_access_code,
         "time_limit_minutes": live_time_limit_minutes,
         "access_code_expires_at": live_access_code_expires_at,
+        **category_metadata,
     }
 
     logging.warning(f"Final API Response: {result}")

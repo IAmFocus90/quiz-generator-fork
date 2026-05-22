@@ -6,6 +6,7 @@ from typing import Any, Optional
 from server.app.db.core.connection import get_quizzes_v2_collection
 from server.app.quiz.repositories.v2.constants import QUIZ_SCHEMA_VERSION
 from server.app.quiz.repositories.v2.models.quiz_models import (
+    QuizClassificationV2,
     QuizCreateV2,
     QuizDocumentV2,
     QuizMetadataUpdateV2,
@@ -55,6 +56,11 @@ class CanonicalQuizWriteService:
         status: str = "active",
         source: str = "legacy",
         tags: list[str] | None = None,
+        category: str | None = None,
+        category_slug: str | None = None,
+        subcategory: str | None = None,
+        subcategory_slug: str | None = None,
+        classification: dict[str, Any] | QuizClassificationV2 | None = None,
         legacy_source_collection: str | None = None,
         legacy_quiz_id: str | None = None,
     ) -> QuizDocumentV2:
@@ -68,6 +74,11 @@ class CanonicalQuizWriteService:
             status=status,
             source=source,
             tags=tags or [],
+            category=category,
+            category_slug=category_slug,
+            subcategory=subcategory,
+            subcategory_slug=subcategory_slug,
+            classification=classification,
             questions=normalized_questions,
         )
         fingerprint_payload = {
@@ -97,7 +108,12 @@ class CanonicalQuizWriteService:
             status=quiz_create.status,
             source=quiz_create.source,
             questions=quiz_create.questions,
-            tags=[tag.strip() for tag in quiz_create.tags if tag.strip()],
+            tags=list(dict.fromkeys(tag.strip() for tag in quiz_create.tags if tag.strip())),
+            category=quiz_create.category,
+            category_slug=quiz_create.category_slug,
+            subcategory=quiz_create.subcategory,
+            subcategory_slug=quiz_create.subcategory_slug,
+            classification=quiz_create.classification,
             legacy_source_collection=legacy_source_collection,
             legacy_quiz_id=legacy_quiz_id,
             content_fingerprint=self.build_content_fingerprint(fingerprint_payload),
@@ -118,6 +134,11 @@ class CanonicalQuizWriteService:
             source=quiz_data.source,
             questions=quiz_data.questions,
             tags=quiz_data.tags,
+            category=quiz_data.category,
+            category_slug=quiz_data.category_slug,
+            subcategory=quiz_data.subcategory,
+            subcategory_slug=quiz_data.subcategory_slug,
+            classification=quiz_data.classification,
         )
         return await self.repository.insert_quiz(quiz_document)
 

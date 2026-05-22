@@ -53,3 +53,9 @@ class QuizResponse(BaseModel):
     access_code: Optional[str] = None
     time_limit_minutes: Optional[int] = None
     access_code_expires_at: Optional[datetime] = None
+    category: Optional[str] = None
+    category_slug: Optional[str] = None
+    subcategory: Optional[str] = None
+    subcategory_slug: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    classification: Optional[dict] = None
