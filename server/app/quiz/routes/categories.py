@@ -2,9 +2,8 @@ from fastapi import APIRouter, Query
 
 from typing import List
 
-from server.app.db.core.connection import quiz_categories_collection
-
-from server.app.quiz.models.quiz_category_models import QuizQuestionModel
+from server.app.quiz.schemas.category_schemas import CategoryQuestionResponse
+from server.app.quiz.services.category_service import CategoryService
 
 
 router = APIRouter()
@@ -14,34 +13,28 @@ router = APIRouter()
 
 async def get_categories():
 
-    categories = await quiz_categories_collection.distinct("category")
-
-    return categories
+    return await CategoryService().list_categories()
 
 
 @router.get("/category/{category}/subcategories", response_model=List[str])
 
 async def get_subcategories(category: str):
 
-    subcategories = await quiz_categories_collection.distinct("subcategory", {"category": category})
-
-    return subcategories
+    return await CategoryService().list_subcategories(category)
 
 
 @router.get("/category/{category}/subcategory/{subcategory}/types", response_model=List[str])
 
 async def get_quiz_types(category: str, subcategory: str):
 
-    types = await quiz_categories_collection.distinct("question_type", {"category": category, "subcategory": subcategory})
-
-    return types
+    return await CategoryService().list_quiz_types(category, subcategory)
 
 
 @router.get(
 
     "/category/{category}/subcategory/{subcategory}/type/{question_type}",
 
-    response_model=List[QuizQuestionModel],
+    response_model=List[CategoryQuestionResponse],
 
 )
 
@@ -58,32 +51,10 @@ async def get_quizzes_by_category_subcategory_type(
     page_size: int = Query(5, ge=1, le=50),
 
 ):
-
-    skip = (page - 1) * page_size
-
-    docs = await quiz_categories_collection.find({
-
-        "category": category,
-
-        "subcategory": subcategory,
-
-        "question_type": question_type,
-
-    }).skip(skip).limit(page_size).to_list(length=page_size)
-
-
-    questions = []
-
-    for doc in docs:
-
-        for q in doc.get("questions", []):
-
-            q["subcategory"] = doc.get("subcategory")
-
-            q["question_type"] = doc.get("question_type")
-
-            questions.append(q)
-
-
-    return questions
-
+    return await CategoryService().list_questions(
+        category=category,
+        subcategory=subcategory,
+        question_type=question_type,
+        page=page,
+        page_size=page_size,
+    )

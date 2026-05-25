@@ -1,6 +1,6 @@
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorCollection
-from .db.core.connection import quizzes_collection, users_collection, quiz_categories_collection
+from .db.core.connection import quizzes_collection, users_collection
 from .seed_data import seed_quizzes, seed_user_data
 from datetime import datetime, timezone
 from .core.security import hash_password
@@ -90,13 +90,12 @@ async def restoreSeed_users_collection(collection: AsyncIOMotorCollection, seed_
             print(f"Error inserting user: {e}")
 
 
-async def restoreSeed_quiz_categories_collection(collection: AsyncIOMotorCollection):
+async def restoreSeed_category_quizzes():
     try:
-        await collection.delete_many({})
         await seed_all()
-        print("Quiz categories restored successfully.")
+        print("V2 category quizzes restored successfully.")
     except Exception as e:
-        print(f"Error restoring quiz categories: {e}")
+        print(f"Error restoring V2 category quizzes: {e}")
 
 
 async def seed_database():
@@ -112,6 +111,6 @@ async def restoreSeed_database():
     await asyncio.gather(
         restoreSeed_quizzes_collection(quizzes_collection, seed_quizzes),
         restoreSeed_users_collection(users_collection, seed_user_data),
-        restoreSeed_quiz_categories_collection(quiz_categories_collection)
+        restoreSeed_category_quizzes()
     )
     print("Database Restore and Seeding completed!")

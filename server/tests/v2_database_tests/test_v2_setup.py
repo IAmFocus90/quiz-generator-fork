@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime
 
 from ...app.quiz.repositories.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
 
@@ -27,6 +28,8 @@ async def test_v2_indexes_are_created(test_db):
     saved_indexes = await test_db["saved_quizzes_v2"].index_information()
 
     assert "owner_user_id_1_created_at_-1" in quizzes_indexes
+    assert "category_browse_v2" in quizzes_indexes
+    assert "tags_status_visibility_v2" in quizzes_indexes
     assert "user_id_1_quiz_id_1" in saved_indexes
 
 
@@ -42,3 +45,28 @@ async def test_v2_validators_reject_malformed_quiz_documents(test_db):
                 "questions": [{"question": "Missing answer"}],
             }
         )
+
+
+@pytest.mark.asyncio
+async def test_v2_validators_accept_uncategorized_quiz_documents(test_db):
+    await ensure_v2_collections_and_validators(test_db)
+
+    await test_db["quizzes_v2"].insert_one(
+        {
+            "title": "Uncategorized quiz",
+            "quiz_type": "multichoice",
+            "questions": [{"question": "Q?", "correct_answer": "A"}],
+            "visibility": "private",
+            "status": "active",
+            "source": "manual",
+            "tags": [],
+            "category": None,
+            "category_slug": None,
+            "subcategory": None,
+            "subcategory_slug": None,
+            "classification": None,
+            "schema_version": 1,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+    )

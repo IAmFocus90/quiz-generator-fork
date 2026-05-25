@@ -23,6 +23,31 @@ def test_quiz_create_v2_accepts_valid_payload():
     assert payload.questions[0].correct_answer == "HyperText Transfer Protocol"
 
 
+def test_quiz_create_v2_accepts_optional_category_metadata():
+    payload = QuizCreateV2(
+        title="Biology Basics",
+        quiz_type="short-answer",
+        source="seed",
+        visibility="public",
+        category="Science",
+        category_slug="science",
+        subcategory="Biology",
+        subcategory_slug="biology",
+        tags=["science", "biology", "short-answer"],
+        classification={"method": "seed_path", "confidence": 1.0},
+        questions=[
+            {
+                "question": "What is the basic unit of life?",
+                "correct_answer": "Cell",
+            }
+        ],
+    )
+
+    assert payload.quiz_type == "short-answer"
+    assert payload.category_slug == "science"
+    assert payload.classification.method == "seed_path"
+
+
 def test_quiz_question_v2_normalizes_legacy_answer_field():
     question = QuizQuestionV2(
         question="The sky is blue.",

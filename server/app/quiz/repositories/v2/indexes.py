@@ -36,6 +36,25 @@ async def ensure_quizzes_v2_indexes(collection: AsyncIOMotorCollection):
     await collection.create_index("status")
     await collection.create_index([("source", 1), ("created_at", -1)])
     await collection.create_index(
+        [
+            ("category_slug", 1),
+            ("subcategory_slug", 1),
+            ("quiz_type", 1),
+            ("status", 1),
+            ("visibility", 1),
+            ("created_at", -1),
+        ],
+        name="category_browse_v2",
+    )
+    await collection.create_index(
+        [("tags", 1), ("status", 1), ("visibility", 1)],
+        name="tags_status_visibility_v2",
+    )
+    await collection.create_index(
+        [("source", 1), ("category_slug", 1), ("subcategory_slug", 1)],
+        name="source_category_subcategory_v2",
+    )
+    await collection.create_index(
         [("legacy_source_collection", 1), ("legacy_quiz_id", 1)],
         unique=True,
         partialFilterExpression={

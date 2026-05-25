@@ -12,6 +12,7 @@ class QuizTypeV2(str, Enum):
     MULTICHOICE = "multichoice"
     TRUE_FALSE = "true-false"
     OPEN_ENDED = "open-ended"
+    SHORT_ANSWER = "short-answer"
 
 
 class QuizVisibilityV2(str, Enum):
@@ -31,6 +32,20 @@ class QuizSourceV2(str, Enum):
     MANUAL = "manual"
     SEED = "seed"
     LEGACY = "legacy"
+
+
+class QuizClassificationMethodV2(str, Enum):
+    SEED_PATH = "seed_path"
+    DETERMINISTIC = "deterministic"
+    AI = "ai"
+    MANUAL = "manual"
+
+
+class QuizClassificationV2(BaseModel):
+    method: QuizClassificationMethodV2
+    confidence: float = Field(ge=0, le=1)
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class QuizQuestionV2(BaseModel):
@@ -60,6 +75,11 @@ class QuizCreateV2(BaseModel):
     status: QuizStatusV2 = QuizStatusV2.ACTIVE
     source: QuizSourceV2 = QuizSourceV2.MANUAL
     tags: List[str] = Field(default_factory=list)
+    category: Optional[str] = None
+    category_slug: Optional[str] = None
+    subcategory: Optional[str] = None
+    subcategory_slug: Optional[str] = None
+    classification: Optional[QuizClassificationV2] = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -70,6 +90,11 @@ class QuizMetadataUpdateV2(BaseModel):
     visibility: Optional[QuizVisibilityV2] = None
     status: Optional[QuizStatusV2] = None
     tags: Optional[List[str]] = None
+    category: Optional[str] = None
+    category_slug: Optional[str] = None
+    subcategory: Optional[str] = None
+    subcategory_slug: Optional[str] = None
+    classification: Optional[QuizClassificationV2] = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -91,6 +116,11 @@ class QuizDocumentV2(BaseModel):
     status: QuizStatusV2 = QuizStatusV2.ACTIVE
     source: QuizSourceV2 = QuizSourceV2.MANUAL
     tags: List[str] = Field(default_factory=list)
+    category: Optional[str] = None
+    category_slug: Optional[str] = None
+    subcategory: Optional[str] = None
+    subcategory_slug: Optional[str] = None
+    classification: Optional[QuizClassificationV2] = None
     legacy_source_collection: Optional[str] = None
     legacy_quiz_id: Optional[str] = None
     content_fingerprint: Optional[str] = None
