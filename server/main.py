@@ -1,46 +1,23 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
 
-import redis
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from redis.asyncio import Redis
 from slowapi.errors import RateLimitExceeded
 
-from .api import healthcheck
-from .api.v1.crud import generate_quiz, get_user_quiz_history
-from .api.v1.crud.download.download_quiz import (
-    download_mock_quiz,
-    download_quiz_by_id,
-    download_quiz_from_payload,
-)
-from .app.auth.routes import router as auth_router
-from .app.db.core.config import settings
-from .app.db.core.connection import (
+from server.app.api.router import router as app_router
+from server.app.core.rate_limiter import limiter, rate_limit_handler
+from server.app.db.core.connection import (
     database,
-    get_blacklisted_tokens_collection,
+    get_auth_events_collection,
     get_quizzes_collection,
+    get_user_sessions_collection,
     get_users_collection,
     startUp,
 )
-from .app.db.core.rate_limiter import limiter, rate_limit_handler
-from .app.db.models.user_models import UserOut
-from .app.db.routes import router as db_router
-from .app.db.routes import notifications, saved_quizzes, token_router
-from .app.db.routes.folder_routes import router as folder_routes
-from .app.db.routes.get_categories import router as get_categories_router
-from .app.db.routes.get_quiz_history import router as get_quiz_history_router
-from .app.db.routes.save_quiz_history import router as save_quiz_router
-from .app.api.v1.routes.live_quiz_sessions import router as live_quiz_router
-from .app.quiz.routers.quiz import router as quiz_router
-from .app.share.routes.share_routes import router as share_router
-from .schemas.model import DownloadQuizRequestModel
-from .schemas.query import DownloadQuizQuery, GenerateQuizQuery, GetUserQuizHistoryQuery
-from .app.dependancies import get_current_user, get_current_user_optional, get_verified_user
 
 
 logging.basicConfig(
@@ -48,7 +25,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler()],
 )
-logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
@@ -65,8 +41,9 @@ async def lifespan(app: FastAPI):
     redis_client = Redis.from_url(redis_url, decode_responses=True)
     app.state.redis = redis_client
     app.state.users_collection = get_users_collection()
+    app.state.user_sessions_collection = get_user_sessions_collection()
+    app.state.auth_events_collection = get_auth_events_collection()
     app.state.quizzes_collection = get_quizzes_collection()
-    app.state.blacklisted_tokens_collection = get_blacklisted_tokens_collection()
 
     yield
 
@@ -76,6 +53,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
+app.database = database
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 app.add_middleware(
     CORSMiddleware,
@@ -84,126 +62,4 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.include_router(db_router)
-app.include_router(quiz_router, prefix="/api", tags=["quiz"])
-app.include_router(share_router, prefix="/share", tags=["share"])
-app.include_router(healthcheck.router, prefix="/api", tags=["healthcheck"])
-app.include_router(auth_router, prefix="/auth", tags=["authentication"])
-app.include_router(token_router.router, prefix="/api", tags=["Token"])
-app.include_router(saved_quizzes.router, prefix="/api", tags=["Saved Quizzes"])
-app.include_router(folder_routes, prefix="/api/folders", tags=["Folders"])
-app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
-
-app.include_router(save_quiz_router, prefix="/api")
-app.include_router(get_quiz_history_router, prefix="/api")
-app.include_router(get_categories_router, prefix="/api")
-app.include_router(live_quiz_router, prefix="/api/v1", tags=["Live Quiz"])
-app.database = database
-
-
-
-
-@app.get("/api")
-@limiter.limit("100/minute")
-async def read_root(request: Request, response: Response):
-    logger.info("Root endpoint accessed")
-    return {"message": "Welcome to the Quiz App API!"}
-
-
-@app.get("/users")
-@limiter.limit("30/minute")
-async def get_users(
-    request: Request,
-    response: Response,
-    current_user: UserOut = Depends(get_current_user),
-):
-    if not settings.ENABLE_PUBLIC_USER_LIST and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    users_collection = request.app.state.users_collection
-    users = await users_collection.find(
-        {},
-        projection={
-            "hashed_password": 0,
-            "refresh_token": 0,
-            "refresh_token_jti": 0,
-            "refresh_token_expires_at": 0,
-        },
-    ).to_list(length=100)
-    return users
-
-
-@app.post("/generate-quiz")
-@limiter.limit("10/minute;50/hour")
-async def generate_quiz_handler(
-    request: Request,
-    response: Response,
-    query: GenerateQuizQuery = Body(...),
-) -> Dict[str, Any]:
-    logger.info("Received query: %s", query)
-    return generate_quiz(query.user_id, query.question_type, query.num_question)
-
-
-@app.post("/get-user-quiz-history")
-@limiter.limit("50/minute")
-async def get_user_quiz_history_handler(
-    request: Request,
-    response: Response,
-    query: GetUserQuizHistoryQuery = Body(...),
-    current_user: UserOut = Depends(get_verified_user),
-) -> List[Any]:
-    logger.info("Received query: %s", query)
-
-    if query.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    return get_user_quiz_history(query.user_id)
-
-
-@app.get("/download-quiz")
-@limiter.limit("20/minute")
-async def download_quiz_handler(
-    request: Request,
-    response: Response,
-    query: DownloadQuizQuery = Depends(),
-    current_user: UserOut | None = Depends(get_current_user_optional),
-) -> StreamingResponse:
-    logger.info("Received query: %s", query)
-    if query.quiz_id:
-        if current_user is None:
-            raise HTTPException(status_code=401, detail="Authentication required")
-        if not current_user.is_verified:
-            raise HTTPException(status_code=403, detail="Email not verified")
-        return await download_quiz_by_id(
-            quiz_id=query.quiz_id,
-            file_format=query.format,
-            user_id=current_user.id,
-        )
-
-    return download_mock_quiz(
-        query.format,
-        query.question_type,
-        query.num_question)
-
-
-@app.post("/download-quiz")
-@limiter.limit("20/minute")
-async def download_quiz_from_payload_handler(
-    request: Request,
-    response: Response,
-    payload: DownloadQuizRequestModel = Body(...),
-) -> StreamingResponse:
-    return download_quiz_from_payload(
-        title=payload.title,
-        description=payload.description,
-        quiz_type=payload.quiz_type,
-        questions=[question.model_dump(exclude_none=True) for question in payload.questions],
-        file_format=payload.format,
-    )
-
-
-@app.get("/ping-redis")
-@limiter.limit("10/minute")
-async def ping_redis(request: Request, response: Response):
-    redis_client = redis.Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
-    return {"pong": redis_client.ping()}
+app.include_router(app_router)

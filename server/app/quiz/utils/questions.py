@@ -5,13 +5,13 @@ from typing import Dict
 from server.app.quiz.models.quiz_models import QuizRequest
 from server.app.quiz.utils.huggingface_utils import generate_quiz_with_huggingface
 from server.app.quiz.utils.mock_quiz_generator import get_mock_questions_by_type
-from server.app.db.crud.ai_generated_quiz_crud import save_ai_generated_quiz
+from server.app.quiz.repositories.ai_generated_quiz_repository import save_ai_generated_quiz
 from server.app.db.core.connection import (
     get_live_quiz_sessions_collection,
     get_quizzes_v2_collection,
 )
-from server.app.db.v2.repositories.live_quiz_session_repository import LiveQuizSessionRepository
-from server.app.services.live_quiz_session_service import LiveQuizSessionService
+from server.app.quiz.repositories.live_session_repository import LiveQuizSessionRepository
+from server.app.quiz.services.live_session_service import LiveQuizSessionService
 
 
 async def get_questions(request: QuizRequest, user_id: str | None = None) -> Dict:

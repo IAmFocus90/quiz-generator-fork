@@ -1,345 +1,164 @@
 import pytest
+from fastapi import HTTPException
 
-from fastapi.testclient import TestClient
-
-from fastapi import FastAPI
-
-
-from server.app.quiz.routers.quiz import router as quiz_router
-
-from server.app.dependancies import get_current_user_optional
-
-
-app = FastAPI()
-
-app.include_router(quiz_router, prefix="/api")
-
-app.dependency_overrides[get_current_user_optional] = lambda: None
-
-
-client = TestClient(app)
+from server.app.quiz.models.grading_models import UserAnswer
+from server.app.quiz.models.quiz_models import QuizRequest
+from server.app.quiz.routes.generation import get_quiz
+from server.app.quiz.routes.grading import grade_user_answers
 
 
 @pytest.fixture(autouse=True)
-
 def mock_hf_down(monkeypatch):
-
     async def _raise(*args, **kwargs):
-
         raise Exception("mocked HF down")
 
-
     monkeypatch.setattr(
-
         "server.app.quiz.utils.questions.generate_quiz_with_huggingface",
-
         _raise,
-
     )
 
 
-def build_payload(question_type: str, num_questions: int):
-
-    return {
-
-        "profession": "Engineer",
-
-        "num_questions": num_questions,
-
-        "question_type": question_type,
-
-        "difficulty_level": "medium",
-
-        "audience_type": "students",
-
-        "custom_instruction": "",
-
-    }
+def build_request(question_type: str, num_questions: int) -> QuizRequest:
+    return QuizRequest(
+        profession="Engineer",
+        num_questions=num_questions,
+        question_type=question_type,
+        difficulty_level="medium",
+        audience_type="students",
+        custom_instruction="",
+    )
 
 
-def test_get_questions_multichoice_success():
-
-    payload = build_payload("multichoice", 3)
-
-    response = client.post("/api/get-questions", json=payload)
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert isinstance(data, dict)
+@pytest.mark.asyncio
+async def test_get_questions_multichoice_success():
+    data = await get_quiz(build_request("multichoice", 3), current_user=None)
 
     assert isinstance(data["questions"], list)
-
     assert len(data["questions"]) == 3
-
     for question in data["questions"]:
-
         assert "question" in question
-
         assert "options" in question
-
         assert "question_type" in question
-
         assert "answer" in question
 
 
-def test_get_questions_true_false_success():
-
-    payload = build_payload("true-false", 5)
-
-    response = client.post("/api/get-questions", json=payload)
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert isinstance(data, dict)
-
-    assert isinstance(data["questions"], list)
+@pytest.mark.asyncio
+async def test_get_questions_true_false_success():
+    data = await get_quiz(build_request("true-false", 5), current_user=None)
 
     assert len(data["questions"]) == 5
-
     for question in data["questions"]:
-
-        assert "question" in question
-
-        assert "options" in question
-
         assert isinstance(question["options"], list)
-
-        assert "question_type" in question
-
         assert question["question_type"] == "true-false"
-
         assert "answer" in question
 
 
-def test_get_questions_open_ended_success():
-
-    payload = build_payload("open-ended", 3)
-
-    response = client.post("/api/get-questions", json=payload)
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert isinstance(data, dict)
-
-    assert isinstance(data["questions"], list)
+@pytest.mark.asyncio
+async def test_get_questions_open_ended_success():
+    data = await get_quiz(build_request("open-ended", 3), current_user=None)
 
     assert len(data["questions"]) == 3
-
     for question in data["questions"]:
-
-        assert "question" in question
-
-        if "options" in question:
-
-            assert question["options"] == [] or question["options"] is None
-
-        assert "question_type" in question
-
+        assert question.get("options") in ([], None)
         assert question["question_type"] == "open-ended"
-
-        assert "answer" in question
-
         assert question["answer"] != ""
 
 
-def test_get_questions_invalid_type():
+@pytest.mark.asyncio
+async def test_get_questions_invalid_type():
+    with pytest.raises(HTTPException) as exc:
+        await get_quiz(build_request("invalid-type", 2), current_user=None)
 
-    payload = build_payload("invalid-type", 2)
-
-    response = client.post("/api/get-questions", json=payload)
-
-    assert response.status_code == 400
-
-    data = response.json()
-
-    assert "No mock data for question type" in data["detail"]
+    assert exc.value.status_code == 400
+    assert "No mock data for question type" in exc.value.detail
 
 
-def test_get_questions_exceeding_available():
+@pytest.mark.asyncio
+async def test_get_questions_exceeding_available():
+    with pytest.raises(HTTPException) as exc:
+        await get_quiz(build_request("multichoice", 20), current_user=None)
 
-    payload = build_payload("multichoice", 20)
-
-    response = client.post("/api/get-questions", json=payload)
-
-    assert response.status_code == 400
-
-    data = response.json()
-
-    assert "Requested" in data["detail"]
+    assert exc.value.status_code == 400
+    assert "Requested" in exc.value.detail
 
 
-def test_grade_answers_multichoice():
-
-    payload = [
-
-        {
-
-            "question": "What is the capital of France?",
-
-            "user_answer": "Paris",
-
-            "correct_answer": "Paris",
-
-            "question_type": "multichoice"
-
-        },
-
-        {
-
-            "question": "Which planet is known as the Red Planet?",
-
-            "user_answer": "Jupiter",
-
-            "correct_answer": "Mars",
-
-            "question_type": "multichoice"
-
-        },
-
-    ]
-
-    response = client.post("/api/grade-answers", json=payload)
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert isinstance(data, list)
+@pytest.mark.asyncio
+async def test_grade_answers_multichoice():
+    data = await grade_user_answers(
+        [
+            UserAnswer(
+                question="What is the capital of France?",
+                user_answer="Paris",
+                correct_answer="Paris",
+                question_type="multichoice",
+            ),
+            UserAnswer(
+                question="Which planet is known as the Red Planet?",
+                user_answer="Jupiter",
+                correct_answer="Mars",
+                question_type="multichoice",
+            ),
+        ],
+        source="mock",
+    )
 
     assert len(data) == 2
-
     assert data[0]["is_correct"] is True
-
     assert data[0]["result"] == "Correct"
-
     assert data[1]["is_correct"] is False
-
     assert data[1]["result"] == "Incorrect"
 
 
-def test_grade_answers_true_false():
-
-    payload = [
-
-        {
-
-            "question": "The Earth is flat.",
-
-            "user_answer": "false",
-
-            "correct_answer": "false",
-
-            "question_type": "true-false"
-
-        },
-
-        {
-
-            "question": "Water boils at 100°C.",
-
-            "user_answer": "true",
-
-            "correct_answer": "true",
-
-            "question_type": "true-false"
-
-        },
-
-        {
-
-            "question": "The sun revolves around the Earth.",
-
-            "user_answer": "false",
-
-            "correct_answer": "false",
-
-            "question_type": "true-false"
-
-        },
-
-    ]
-
-    response = client.post("/api/grade-answers", json=payload)
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert isinstance(data, list)
-
-    assert len(data) == 3
-
-    for item in data:
-
-        if item["question"] == "Water boils at 100°C.":
-
-            assert item["is_correct"] is True
-
-            assert item["result"] == "Correct"
-
-        else:
-
-            assert item["is_correct"] is True
-
-            assert item["result"] == "Correct"
-
-
-def test_grade_answers_open_ended():
-
-    payload = [
-
-        {
-
-            "question": "Explain the process of photosynthesis.",
-
-            "user_answer": "Photosynthesis uses sunlight to make food from carbon dioxide and water.",
-
-            "correct_answer": (
-
-                "Photosynthesis is the process by which green plants and some organisms use sunlight to synthesize foods with the help of chlorophyll. "
-
-                "It involves the conversion of carbon dioxide and water into glucose and oxygen."
-
+@pytest.mark.asyncio
+async def test_grade_answers_true_false():
+    data = await grade_user_answers(
+        [
+            UserAnswer(
+                question="The Earth is flat.",
+                user_answer="false",
+                correct_answer="false",
+                question_type="true-false",
             ),
+            UserAnswer(
+                question="Water boils at 100 C.",
+                user_answer="true",
+                correct_answer="true",
+                question_type="true-false",
+            ),
+        ],
+        source="mock",
+    )
 
-            "question_type": "open-ended"
+    assert len(data) == 2
+    assert all(item["is_correct"] is True for item in data)
 
-        }
 
-    ]
-
-    response = client.post("/api/grade-answers", json=payload)
-
-    assert response.status_code == 200
-
-    data = response.json()
+@pytest.mark.asyncio
+async def test_grade_answers_open_ended():
+    data = await grade_user_answers(
+        [
+            UserAnswer(
+                question="Explain the process of photosynthesis.",
+                user_answer="Photosynthesis uses sunlight to make food from carbon dioxide and water.",
+                correct_answer=(
+                    "Photosynthesis is the process by which green plants and some organisms use "
+                    "sunlight to synthesize foods with the help of chlorophyll."
+                ),
+                question_type="open-ended",
+            )
+        ],
+        source="mock",
+    )
 
     assert "accuracy_percentage" in data[0]
-
     assert "result" in data[0]
-
     assert data[0]["is_correct"] in [True, False]
 
 
-def test_generate_quiz():
+@pytest.mark.asyncio
+async def test_generate_quiz():
+    data = await get_quiz(build_request("multichoice", 3), current_user=None)
 
-    payload = build_payload("multichoice", 3)
-
-    response = client.post("/api/get-questions", json=payload)
-
-    assert response.status_code == 200
-
-    data = response.json()
-
-    assert "source" in data
-
+    assert data["source"] == "mock"
     assert isinstance(data["questions"], list)
-
     assert len(data["questions"]) == 3
-

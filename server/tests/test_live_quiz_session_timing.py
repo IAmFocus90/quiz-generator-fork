@@ -3,8 +3,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi import HTTPException
 
-import server.app.services.live_quiz_session_service as live_quiz_session_service
-from server.app.services.live_quiz_session_service import LiveQuizSessionService
+import server.app.quiz.services.live_session_service as live_quiz_session_service
+from server.app.quiz.services.live_session_service import LiveQuizSessionService
 
 
 class FakeLiveQuizRepository:

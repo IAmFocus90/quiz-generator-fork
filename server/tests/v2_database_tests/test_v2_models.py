@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from ...app.db.v2.models.quiz_models import QuizCreateV2, QuizMetadataUpdateV2, QuizQuestionV2
+from ...app.quiz.repositories.v2.models.quiz_models import QuizCreateV2, QuizMetadataUpdateV2, QuizQuestionV2
 
 
 def test_quiz_create_v2_accepts_valid_payload():

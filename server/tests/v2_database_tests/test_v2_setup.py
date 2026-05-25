@@ -1,6 +1,6 @@
 import pytest
 
-from ...app.db.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
+from ...app.quiz.repositories.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
 
 
 @pytest.mark.asyncio

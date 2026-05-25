@@ -8,12 +8,13 @@ from fastapi.params import Depends
 
 from server.app.auth import routes as auth_routes
 from server.app.auth.services import login_service
-from server.app.db.models.user_models import UserOut
-from server.app.dependancies import get_verified_user
+from server.app.users import routes as user_routes
+from server.app.users.models import UserOut
+from server.app.core.dependencies import get_verified_user
 from server.app.quiz.models.quiz_models import QuizRequest
-from server.app.quiz.routers.quiz import get_quiz
-from server.main import download_quiz_handler, limiter
-from server.schemas.query import DownloadQuizQuery
+from server.app.quiz.routes.generation import get_quiz
+from server.app.quiz.routes.downloads import download_quiz_handler, limiter
+from server.app.quiz.schemas.download_query import DownloadQuizQuery
 
 
 @pytest.fixture(autouse=True)
@@ -47,12 +48,15 @@ def _assert_uses_verified_dependency(endpoint, parameter_name: str = "current_us
 async def test_unverified_user_can_login():
     user_id = ObjectId()
     users_collection = AsyncMock()
+    sessions_collection = AsyncMock()
+    auth_events_collection = AsyncMock()
     users_collection.find_one.return_value = {
         "_id": user_id,
         "username": "unverified",
         "email": "unverified@example.com",
         "hashed_password": "hashed",
         "is_verified": False,
+        "status": "pending_verification",
     }
 
     with patch("server.app.auth.services.verify_password", return_value=True), patch(
@@ -69,6 +73,8 @@ async def test_unverified_user_can_login():
             identifier="unverified@example.com",
             password="password",
             users_collection=users_collection,
+            sessions_collection=sessions_collection,
+            auth_events_collection=auth_events_collection,
         )
 
     assert result["access_token"] == "access-token"
@@ -90,7 +96,7 @@ async def test_unverified_user_can_generate_quiz():
     current_user = _user(is_verified=False)
 
     with patch(
-        "server.app.quiz.routers.quiz.get_questions",
+        "server.app.quiz.routes.generation.get_questions",
         new=AsyncMock(return_value={"source": "mock", "questions": []}),
     ) as get_questions_mock:
         result = await get_quiz(request, current_user=current_user)
@@ -116,9 +122,9 @@ async def test_verified_user_can_use_verified_dependency():
 
 
 def test_sensitive_auth_routes_require_verified_user():
-    _assert_uses_verified_dependency(auth_routes.update_profile)
-    _assert_uses_verified_dependency(auth_routes.request_email_change)
-    _assert_uses_verified_dependency(auth_routes.verify_email_change)
+    _assert_uses_verified_dependency(user_routes.update_profile)
+    _assert_uses_verified_dependency(user_routes.request_email_change)
+    _assert_uses_verified_dependency(user_routes.verify_email_change)
 
 
 def test_login_password_reset_and_verification_routes_do_not_require_verified_user():
@@ -182,7 +188,7 @@ async def test_verified_user_can_download_authenticated_quiz():
     current_user = _user(is_verified=True)
 
     with patch(
-        "server.main.download_quiz_by_id",
+        "server.app.quiz.routes.downloads.download_quiz_by_id",
         new=AsyncMock(return_value="streaming-response"),
     ) as download_mock:
         result = await download_quiz_handler(

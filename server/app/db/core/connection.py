@@ -1,12 +1,13 @@
 from dotenv import load_dotenv
 
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
-from cryptography.fernet import Fernet
 import os
-from datetime import datetime
-from ...db.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
 
-load_dotenv()   
+from cryptography.fernet import Fernet
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
+from server.app.quiz.repositories.v2.setup import ensure_v2_collections_and_validators, ensure_v2_indexes
+from server.app.users.validators import ensure_user_collections
+
+load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
 FERNET_KEY = os.getenv("FERNET_KEY")
@@ -21,6 +22,8 @@ database = client["quizApp_db"]
 
 quizzes_collection = database["quizzes"]
 users_collection = database["users"]
+user_sessions_collection = database["user_sessions"]
+auth_events_collection = database["auth_events"]
 quiz_history_collection = database["quiz_history"]
 ai_generated_quizzes_collection = database["ai_generated_quizzes"]
 live_quiz_sessions_collection = database["live_quiz_sessions"]
@@ -29,7 +32,6 @@ live_quiz_sessions_collection = database["live_quiz_sessions"]
 quiz_categories_collection = database["quizzes_category"]
 folders_collection = database["folders"]
 saved_quizzes_collection = database["saved_quizzes"]
-blacklisted_tokens_collection = database["blacklisted_tokens"]
 notifications_collection = database["notifications"]
 ai_generated_quizzes_collection = database["ai_generated_quizzes"]
 user_tokens_collection = database["user_tokens"]
@@ -40,23 +42,6 @@ saved_quizzes_v2_collection = database["saved_quizzes_v2"]
 quiz_history_v2_collection = database["quiz_history_v2"]
 
 
-async def ensure_user_indexes(users_collection: AsyncIOMotorCollection):
-    await users_collection.create_index("email", unique=True) 
-    await users_collection.create_index("username", unique=True) 
-    await users_collection.create_index("created_at") 
-    await users_collection.create_index("is_active") 
-
-async def ensure_blacklist_indexes(blacklisted_tokens_collection: AsyncIOMotorCollection):
-    await blacklisted_tokens_collection.create_index("jti", unique=True)
-    index_info = await blacklisted_tokens_collection.index_information()
-    expires_index = index_info.get("expires_at_1")
-    if expires_index and "expireAfterSeconds" not in expires_index:
-        await blacklisted_tokens_collection.drop_index("expires_at_1")
-    await blacklisted_tokens_collection.create_index(
-        "expires_at",
-        expireAfterSeconds=0,
-        name="expires_at_1",
-    )
 async def ensure_ai_quiz_indexes(ai_generated_quizzes_collection: AsyncIOMotorCollection):
     """Indexes for the AI-generated quizzes collection."""
     # Compound unique index: no two identical quizzes with same title and questions
@@ -83,6 +68,8 @@ async def ensure_notification_indexes(notifications_collection: AsyncIOMotorColl
         expireAfterSeconds=0,
         name="expires_at_1",
     )
+
+
 async def ensure_live_quiz_session_indexes(
     live_quiz_sessions_collection: AsyncIOMotorCollection,
 ):
@@ -93,9 +80,20 @@ async def ensure_live_quiz_session_indexes(
     await live_quiz_sessions_collection.create_index("expires_at")
 
 
+async def drop_removed_collections():
+    if "blacklisted_tokens" in await database.list_collection_names():
+        await database.drop_collection("blacklisted_tokens")
+
+
 async def startUp():
-    await ensure_user_indexes(users_collection)
-    await ensure_blacklist_indexes(blacklisted_tokens_collection)
+    await ensure_user_collections(
+        database,
+        users_collection,
+        user_sessions_collection,
+        auth_events_collection,
+        backfill_limit=100_000,
+    )
+    await drop_removed_collections()
     await ensure_ai_quiz_indexes(ai_generated_quizzes_collection)
     await ensure_user_tokens_indexes(user_tokens_collection)
     await ensure_notification_indexes(notifications_collection)
@@ -114,6 +112,18 @@ def get_users_collection() -> AsyncIOMotorCollection:
         raise RuntimeError("[DB Error] users_collection has not been initialized properly.")
     return users_collection
 
+
+def get_user_sessions_collection() -> AsyncIOMotorCollection:
+    if user_sessions_collection is None:
+        raise RuntimeError("[DB Error] user_sessions_collection has not been initialized properly.")
+    return user_sessions_collection
+
+
+def get_auth_events_collection() -> AsyncIOMotorCollection:
+    if auth_events_collection is None:
+        raise RuntimeError("[DB Error] auth_events_collection has not been initialized properly.")
+    return auth_events_collection
+
 def get_quizzes_collection() -> AsyncIOMotorCollection:
     if quizzes_collection is None:
         raise RuntimeError("[DB Error] quizzes_collection has not been initialized properly.")
@@ -121,8 +131,6 @@ def get_quizzes_collection() -> AsyncIOMotorCollection:
 
 def get_ai_generated_quizzes_collection() -> AsyncIOMotorCollection:
     return ai_generated_quizzes_collection
-def get_blacklisted_tokens_collection() -> AsyncIOMotorCollection:
-    return blacklisted_tokens_collection
 
 def get_notifications_collection() -> AsyncIOMotorCollection:
     if notifications_collection is None:

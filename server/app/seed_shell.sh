@@ -4,6 +4,6 @@ echo "Running database seed script inside the container..."
 
 cd /server || exit
 
-python -m app.seed
+PYTHONPATH=/ python -m server.app.seed
 
 echo "Database seeding process completed!"

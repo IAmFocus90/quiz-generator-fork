@@ -1,14 +1,14 @@
 import pytest
 
-from ...app.db.v2.models.quiz_models import QuizDocumentV2, QuizMetadataUpdateV2
-from ...app.db.v2.models.reference_models import (
+from ...app.quiz.repositories.v2.models.quiz_models import QuizDocumentV2, QuizMetadataUpdateV2
+from ...app.quiz.repositories.v2.models.reference_models import (
     FolderDocumentV2,
     FolderItemDocumentV2,
     QuizHistoryDocumentV2,
     SavedQuizDocumentV2,
 )
-from ...app.db.v2.repositories.quiz_repository import QuizV2Repository
-from ...app.db.v2.repositories.reference_repository import ReferenceV2Repository
+from ...app.quiz.repositories.v2.repositories.quiz_repository import QuizV2Repository
+from ...app.quiz.repositories.v2.repositories.reference_repository import ReferenceV2Repository
 
 
 @pytest.mark.asyncio

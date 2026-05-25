@@ -2,7 +2,7 @@ import pytest
 from bson import ObjectId
 from datetime import datetime
 
-from ....app.db.v2.migration.backfill_engine import (
+from server.scripts.migrations.v2.migration.backfill_engine import (
     backfill_folders,
     backfill_quiz_history,
     backfill_quizzes,

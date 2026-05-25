@@ -21,7 +21,8 @@
 
     ENV PIP_DEFAULT_TIMEOUT=120 \
         PIP_RETRIES=10 \
-        PIP_DISABLE_PIP_VERSION_CHECK=1
+        PIP_DISABLE_PIP_VERSION_CHECK=1 \
+        PYTHONPATH=/
     
     RUN python3 -m pip install --no-cache-dir pipenv==2023.12.1
     

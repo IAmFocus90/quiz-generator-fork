@@ -1,0 +1,111 @@
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from bson import ObjectId
+from bson.errors import InvalidId
+from motor.motor_asyncio import AsyncIOMotorCollection
+from pymongo import ReturnDocument
+
+from server.app.quiz.repositories.v2.repositories.quiz_repository import QuizV2Repository
+
+
+class LiveQuizSessionRepository:
+    def __init__(
+        self,
+        quizzes_v2_collection: AsyncIOMotorCollection,
+        sessions_collection: AsyncIOMotorCollection,
+    ):
+        self.quiz_repository = QuizV2Repository(quizzes_v2_collection)
+        self.sessions_collection = sessions_collection
+
+    async def get_quiz_by_id(self, quiz_id: str) -> Optional[Dict[str, Any]]:
+        quiz = await self.quiz_repository.find_by_id(quiz_id)
+        return quiz.model_dump(by_alias=True) if quiz else None
+
+    async def get_quiz_by_access_code(self, access_code: str) -> Optional[Dict[str, Any]]:
+        quiz = await self.quiz_repository.find_by_access_code(access_code.strip().upper())
+        return quiz.model_dump(by_alias=True) if quiz else None
+
+    async def access_code_exists(self, access_code: str) -> bool:
+        return await self.quiz_repository.access_code_exists(access_code)
+
+    async def enable_live_quiz(
+        self,
+        quiz_id: str,
+        access_code: str,
+        time_limit_minutes: int,
+        access_code_expires_at: datetime,
+        creator_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        updated = await self.quiz_repository.enable_live_quiz(
+            quiz_id,
+            access_code=access_code,
+            time_limit_minutes=time_limit_minutes,
+            access_code_expires_at=access_code_expires_at,
+        )
+        return updated.model_dump(by_alias=True) if updated else None
+
+    async def create_session(self, session_data: Dict[str, Any]) -> str:
+        result = await self.sessions_collection.insert_one(session_data)
+        return str(result.inserted_id)
+
+    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            return await self.sessions_collection.find_one({"_id": ObjectId(session_id)})
+        except InvalidId:
+            return None
+
+    async def update_session(
+        self,
+        session_id: str,
+        updates: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            updates["updated_at"] = datetime.now(timezone.utc)
+            return await self.sessions_collection.find_one_and_update(
+                {"_id": ObjectId(session_id)},
+                {"$set": updates},
+                return_document=ReturnDocument.AFTER,
+            )
+        except InvalidId:
+            return None
+
+    async def save_answer(
+        self,
+        session_id: str,
+        question_index: int,
+        selected_answer: str,
+        next_question_index: int,
+    ) -> Optional[Dict[str, Any]]:
+        session = await self.get_session(session_id)
+        if not session:
+            return None
+
+        now = datetime.now(timezone.utc)
+        answers = [
+            answer
+            for answer in session.get("answers", [])
+            if answer.get("question_index") != question_index
+        ]
+        answers.append(
+            {
+                "question_index": question_index,
+                "selected_answer": selected_answer,
+                "answered_at": now,
+            }
+        )
+        answers.sort(key=lambda answer: answer["question_index"])
+        return await self.update_session(
+            session_id,
+            {
+                "answers": answers,
+                "current_question_index": next_question_index,
+            },
+        )
+
+    async def list_quiz_sessions(self, quiz_id: str) -> List[Dict[str, Any]]:
+        cursor = self.sessions_collection.find({"quiz_id": quiz_id}).sort(
+            "created_at",
+            -1,
+        )
+        return await cursor.to_list(length=500)

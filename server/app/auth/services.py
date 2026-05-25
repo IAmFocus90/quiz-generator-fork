@@ -1,9 +1,7 @@
-from fastapi import Request, HTTPException, Depends, status
-from typing import Dict
+from fastapi import HTTPException
 from redis import Redis
-import random
 from bson import ObjectId
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 import jwt
 import uuid
 from jwt.exceptions import (
@@ -11,23 +9,39 @@ from jwt.exceptions import (
     InvalidTokenError,
     DecodeError
 )
-from server.app.db.models.user_models import (
-    UserDB,
-    UserOut,
-    UpdateProfileRequest,
-    UpdateProfileResponse
-    )
-import os
-from fastapi.security import OAuth2PasswordBearer
-import redis
-from server.app.db.core.connection import users_collection, blacklisted_tokens_collection, get_blacklisted_tokens_collection
+from server.app.db.core.connection import (
+    get_auth_events_collection,
+    get_user_sessions_collection,
+    users_collection,
+)
 from motor.motor_asyncio import AsyncIOMotorCollection
-from server.app.db.crud.user_crud import create_user, get_user_by_email
-from server.app.db.schemas.user_schemas import  UserRegisterSchema, UserResponseSchema, CreateUserRequest, PasswordResetRequest, PasswordResetResponse, RequestPasswordReset, ResendVerificationRequest, MessageResponse
-from server.app.db.crud.user_crud import delete_user
-import json
+from server.app.users.identity import (
+    ACTIVE_USER_STATUSES,
+    BLOCKED_USER_STATUSES,
+    coerce_user_status,
+    normalize_email,
+    now_utc,
+)
+from server.app.users.repository import (
+    create_user,
+    create_user_session,
+    find_user_for_login,
+    get_active_session,
+    record_auth_event,
+    revoke_user_session,
+    revoke_user_sessions,
+    rotate_user_session,
+)
+from server.app.users.schemas import (
+    CreateUserRequest,
+    MessageResponse,
+    PasswordResetRequest,
+    PasswordResetResponse,
+    RequestPasswordReset,
+    UserRegisterSchema,
+    UserResponseSchema,
+)
 import hmac
-from pymongo.errors import DuplicateKeyError
 from .utils import (
     verify_password, 
     create_access_token, 
@@ -40,7 +54,7 @@ from .utils import (
     verify_token_hash)
 from server.app.db.core.redis import get_redis_client
 from passlib.context import CryptContext
-from server.app.db.core.config import settings
+from server.app.core.config import settings
 from server.app.email_platform.service import EmailService
 
 
@@ -48,7 +62,16 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
   
 
 async def register_user_service(user: UserRegisterSchema, email_svc: EmailService) -> UserResponseSchema:
-    existing_user = await users_collection.find_one({"email": user.email})
+    auth_events_collection = get_auth_events_collection()
+    existing_user = await users_collection.find_one(
+        {
+            "$or": [
+                {"email_normalized": normalize_email(user.email)},
+                {"username_normalized": user.username.strip().casefold()},
+            ],
+            "status": {"$ne": "deleted"},
+        }
+    )
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -62,15 +85,22 @@ async def register_user_service(user: UserRegisterSchema, email_svc: EmailServic
     created_user = await create_user(users_collection, user_data)
     if not created_user:
         raise HTTPException(status_code=500, detail="User registration failed")
+    await record_auth_event(
+        auth_events_collection,
+        event_type="register",
+        status="success",
+        user_id=created_user.id,
+    )
    
     redis_client = await get_redis_client()
     otp = generate_otp()
-    token = generate_verification_token(user.email)
+    token = generate_verification_token(user.email, purpose="email_verification")
+    normalized_email = normalize_email(user.email)
     
 
-    await redis_client.setex(f"otp:{user.email}", timedelta(minutes=10), otp)
-    await redis_client.setex(f"token:{user.email}", timedelta(minutes=30), token)
-    await redis_client.delete(f"attempts:{user.email}")
+    await redis_client.setex(f"otp:{normalized_email}", timedelta(minutes=10), otp)
+    await redis_client.setex(f"token:{normalized_email}", timedelta(minutes=30), token)
+    await redis_client.delete(f"attempts:{normalized_email}")
 
     await email_svc.send_email(
         to=user.email,
@@ -89,11 +119,13 @@ async def register_user_service(user: UserRegisterSchema, email_svc: EmailServic
         updated_at=created_user.updated_at,
         is_active=created_user.is_active,
         is_verified=created_user.is_verified,
+        status=created_user.status,
         role=created_user.role
     )
 
 async def resend_verification_email_service(email: str, email_svc: EmailService) -> MessageResponse:
-    user_data = await users_collection.find_one({"email": email})
+    normalized_email = normalize_email(email)
+    user_data = await users_collection.find_one({"email_normalized": normalized_email})
     if not user_data:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -103,14 +135,14 @@ async def resend_verification_email_service(email: str, email_svc: EmailService)
     redis_client = await get_redis_client()
 
     otp = generate_otp()
-    token = generate_verification_token(email)
+    token = generate_verification_token(user_data["email"], purpose="email_verification")
 
-    await redis_client.setex(f"otp:{email}", timedelta(minutes=10), otp)
-    await redis_client.setex(f"token:{email}", timedelta(minutes=30), token)
-    await redis_client.delete(f"attempts:{email}")
+    await redis_client.setex(f"otp:{normalized_email}", timedelta(minutes=10), otp)
+    await redis_client.setex(f"token:{normalized_email}", timedelta(minutes=30), token)
+    await redis_client.delete(f"attempts:{normalized_email}")
 
     await email_svc.send_email(
-        to=email,
+        to=user_data["email"],
         template_id="verification",
         template_vars={"code": otp, "token": token},
         purpose="verification",  # Celery → Background → Direct
@@ -123,8 +155,9 @@ async def verify_otp_service(email: str,
     otp: str,
     users_collection: AsyncIOMotorCollection,
     redis_client: Redis):
-    stored_otp = await redis_client.get(f"otp:{email}")
-    attempts_raw = await redis_client.get(f"attempts:{email}")
+    normalized_email = normalize_email(email)
+    stored_otp = await redis_client.get(f"otp:{normalized_email}") or await redis_client.get(f"otp:{email}")
+    attempts_raw = await redis_client.get(f"attempts:{normalized_email}")
     attempts = int(attempts_raw or 0)
 
     if attempts >= 4:
@@ -134,27 +167,33 @@ async def verify_otp_service(email: str,
         raise HTTPException(status_code=400, detail="OTP expired or not requested.")
 
     if otp != stored_otp:
-        attempts_key = f"attempts:{email}"
+        attempts_key = f"attempts:{normalized_email}"
         await redis_client.incr(attempts_key)
-        otp_ttl = await redis_client.ttl(f"otp:{email}")
+        otp_ttl = await redis_client.ttl(f"otp:{normalized_email}")
         if otp_ttl and otp_ttl > 0:
             await redis_client.expire(attempts_key, otp_ttl)
         else:
             await redis_client.expire(attempts_key, 600)
         raise HTTPException(status_code=401, detail="Invalid OTP. Try again.")
 
-    user = await users_collection.find_one({"email": email})
+    user = await users_collection.find_one({"email_normalized": normalized_email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
     await users_collection.update_one(
-        {"email": email},
-        {"$set": {"is_verified": True}}
+        {"_id": user["_id"]},
+        {"$set": {"is_verified": True, "status": "active", "updated_at": now_utc()}}
+    )
+    await record_auth_event(
+        get_auth_events_collection(),
+        event_type="email_verification_completed",
+        status="success",
+        user_id=str(user["_id"]),
     )
 
-    await redis_client.delete(f"otp:{email}")
-    await redis_client.delete(f"token:{email}")
-    await redis_client.delete(f"attempts:{email}")
+    await redis_client.delete(f"otp:{normalized_email}")
+    await redis_client.delete(f"token:{normalized_email}")
+    await redis_client.delete(f"attempts:{normalized_email}")
 
     return {"message": "OTP verified successfully!"}
 
@@ -164,18 +203,19 @@ async def verify_link_service(
     redis_client: Redis
 ):
     try:
-        email = decode_verification_token(token)
+        email = decode_verification_token(token, purpose="email_verification")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid or expired token.")
 
     if not email:
         raise HTTPException(status_code=400, detail="Could not decode token.")
 
-    stored_token = await redis_client.get(f"token:{email}")
+    normalized_email = normalize_email(email)
+    stored_token = await redis_client.get(f"token:{normalized_email}") or await redis_client.get(f"token:{email}")
     if not stored_token or not hmac.compare_digest(token, stored_token):
         raise HTTPException(status_code=400, detail="Invalid or already used verification link.")
 
-    user = await users_collection.find_one({"email": email})
+    user = await users_collection.find_one({"email_normalized": normalized_email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
 
@@ -184,45 +224,102 @@ async def verify_link_service(
 
    
     await users_collection.update_one(
-        {"email": email},
-        {"$set": {"is_verified": True}}
+        {"_id": user["_id"]},
+        {"$set": {"is_verified": True, "status": "active", "updated_at": now_utc()}}
+    )
+    await record_auth_event(
+        get_auth_events_collection(),
+        event_type="email_verification_completed",
+        status="success",
+        user_id=str(user["_id"]),
     )
 
   
-    await redis_client.delete(f"token:{email}")
-    await redis_client.delete(f"otp:{email}")
-    await redis_client.delete(f"attempts:{email}")  
+    await redis_client.delete(f"token:{normalized_email}")
+    await redis_client.delete(f"otp:{normalized_email}")
+    await redis_client.delete(f"attempts:{normalized_email}")
 
     return {"message": "Email verified successfully!"}
 
-async def login_service(identifier: str, password: str, users_collection: AsyncIOMotorCollection):
+async def login_service(
+    identifier: str,
+    password: str,
+    users_collection: AsyncIOMotorCollection,
+    sessions_collection: AsyncIOMotorCollection | None = None,
+    auth_events_collection: AsyncIOMotorCollection | None = None,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+):
     """Handle user login and generate access + refresh tokens"""
     
     # Find user by email or username
-    user = await users_collection.find_one({
-        "$or": [{"email": identifier}, {"username": identifier}]
-    })
+    if sessions_collection is None:
+        sessions_collection = get_user_sessions_collection()
+    if auth_events_collection is None:
+        auth_events_collection = get_auth_events_collection()
+    user = await find_user_for_login(users_collection, identifier)
     
     if not user or not verify_password(password, user["hashed_password"]):
+        await record_auth_event(
+            auth_events_collection,
+            event_type="login_failed",
+            status="failed",
+            metadata={"identifier": identifier},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    status_value = coerce_user_status(user)
+    if status_value in BLOCKED_USER_STATUSES or status_value not in ACTIVE_USER_STATUSES:
+        await record_auth_event(
+            auth_events_collection,
+            event_type="login_failed",
+            status="blocked",
+            user_id=str(user["_id"]),
+            metadata={"account_status": status_value},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        raise HTTPException(status_code=403, detail="Account is not active")
     
     user_id = str(user["_id"])
+    session_id = str(uuid.uuid4())
     
-    access_token = create_access_token({"sub": user_id})
+    access_token = create_access_token({"sub": user_id}, session_id=session_id)
     
-    refresh_token, jti, expires_at = create_refresh_token({"sub": user_id})
+    refresh_token, jti, expires_at = create_refresh_token({"sub": user_id}, session_id=session_id)
     
     hashed_refresh_token = hash_token(refresh_token)
+    await create_user_session(
+        sessions_collection,
+        user_id=user_id,
+        session_id=session_id,
+        jti=jti,
+        refresh_token_hash=hashed_refresh_token,
+        expires_at=expires_at,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
     
     await users_collection.update_one(
         {"_id": user["_id"]},
         {
             "$set": {
-                "refresh_token": hashed_refresh_token,
-                "refresh_token_jti": jti,
-                "refresh_token_expires_at": expires_at
+                "last_login_at": now_utc(),
+                "last_seen_at": now_utc(),
+                "updated_at": now_utc(),
             }
         }
+    )
+    await record_auth_event(
+        auth_events_collection,
+        event_type="login_success",
+        status="success",
+        user_id=user_id,
+        metadata={"session_id": session_id},
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
     
     return {
@@ -233,7 +330,16 @@ async def login_service(identifier: str, password: str, users_collection: AsyncI
         "is_verified": user.get("is_verified", False),
     }
 
-async def refresh_token_service(refresh_token: str, users_collection: AsyncIOMotorCollection):
+async def refresh_token_service(
+    refresh_token: str,
+    users_collection: AsyncIOMotorCollection,
+    sessions_collection: AsyncIOMotorCollection | None = None,
+    auth_events_collection: AsyncIOMotorCollection | None = None,
+):
+    if sessions_collection is None:
+        sessions_collection = get_user_sessions_collection()
+    if auth_events_collection is None:
+        auth_events_collection = get_auth_events_collection()
     try:
         payload = decode_refresh_token(refresh_token)
     except HTTPException:
@@ -241,65 +347,72 @@ async def refresh_token_service(refresh_token: str, users_collection: AsyncIOMot
     
     user_id = payload.get("sub")
     token_jti = payload.get("jti")
+    session_id = payload.get("sid")
     
-    if not user_id or not token_jti:
+    if not user_id or not token_jti or not session_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
     
     user = await users_collection.find_one({"_id": ObjectId(user_id)})
     
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if coerce_user_status(user) not in ACTIVE_USER_STATUSES:
+        raise HTTPException(status_code=403, detail="Account is not active")
     
-    stored_token_hash = user.get("refresh_token")
-    stored_jti = user.get("refresh_token_jti")
-    token_expires_at = user.get("refresh_token_expires_at")
+    session = await get_active_session(
+        sessions_collection,
+        session_id=session_id,
+        user_id=user_id,
+    )
     
-    if not stored_token_hash or not stored_jti:
+    if not session:
         raise HTTPException(status_code=401, detail="No refresh token found")
     
-    if not verify_token_hash(refresh_token, stored_token_hash):
-        await users_collection.update_one(
-            {"_id": user["_id"]},
-            {"$unset": {
-                "refresh_token": "",
-                "refresh_token_jti": "",
-                "refresh_token_expires_at": "",
-            }},
+    if not verify_token_hash(refresh_token, session["refresh_token_hash"]):
+        await revoke_user_session(
+            sessions_collection,
+            session_id=session_id,
+            revoke_reason="refresh_reuse_detected",
+        )
+        await record_auth_event(
+            auth_events_collection,
+            event_type="refresh_reuse_detected",
+            status="failed",
+            user_id=user_id,
+            metadata={"session_id": session_id},
         )
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     
-    if token_jti != stored_jti:
-        await users_collection.update_one(
-            {"_id": user["_id"]},
-            {"$unset": {
-                "refresh_token": "",
-                "refresh_token_jti": "",
-                "refresh_token_expires_at": "",
-            }},
+    if token_jti != session["jti"]:
+        await revoke_user_session(
+            sessions_collection,
+            session_id=session_id,
+            revoke_reason="refresh_jti_mismatch",
+        )
+        await record_auth_event(
+            auth_events_collection,
+            event_type="refresh_reuse_detected",
+            status="failed",
+            user_id=user_id,
+            metadata={"session_id": session_id},
         )
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-    
-    if token_expires_at:
-        if token_expires_at.tzinfo is None:
-            token_expires_at = token_expires_at.replace(tzinfo=timezone.utc)
-        if datetime.now(timezone.utc) > token_expires_at:
-            raise HTTPException(status_code=401, detail="Refresh token expired")
 
     
-    new_access_token = create_access_token({"sub": user_id})
+    new_access_token = create_access_token({"sub": user_id}, session_id=session_id)
 
-    new_refresh_token, new_jti, new_expires_at = create_refresh_token({"sub": user_id})
+    new_refresh_token, new_jti, new_expires_at = create_refresh_token({"sub": user_id}, session_id=session_id)
     hashed_new_refresh_token = hash_token(new_refresh_token)
-    
+    await rotate_user_session(
+        sessions_collection,
+        session_id=session_id,
+        jti=new_jti,
+        refresh_token_hash=hashed_new_refresh_token,
+        expires_at=new_expires_at,
+    )
     await users_collection.update_one(
         {"_id": user["_id"]},
-        {
-            "$set": {
-                "refresh_token": hashed_new_refresh_token,
-                "refresh_token_jti": new_jti,
-                "refresh_token_expires_at": new_expires_at
-            }
-        }
+        {"$set": {"last_seen_at": now_utc(), "updated_at": now_utc()}},
     )
     
     return {
@@ -309,18 +422,26 @@ async def refresh_token_service(refresh_token: str, users_collection: AsyncIOMot
     }
 
 async def request_password_reset_service(request: RequestPasswordReset, email_svc: EmailService):
-    user = await users_collection.find_one({"email": request.email})
+    normalized_email = normalize_email(request.email)
+    auth_events_collection = get_auth_events_collection()
+    user = await users_collection.find_one({"email_normalized": normalized_email})
     message = {"message": "If this email exists, reset instructions have been sent."}
     if not user:
         return message
     
     otp = generate_otp()
-    token = generate_verification_token(request.email)
+    token = generate_verification_token(user["email"], purpose="password_reset")
     
     redis_client = await get_redis_client()
-    await redis_client.setex(f"otp:{request.email}", 300, otp)
-    await redis_client.setex(f"token:{request.email}", 1800, token)
-    await redis_client.delete(f"attempts:{request.email}")
+    await redis_client.setex(f"password_reset_otp:{normalized_email}", 300, otp)
+    await redis_client.setex(f"password_reset_token:{normalized_email}", 1800, token)
+    await redis_client.delete(f"password_reset_attempts:{normalized_email}")
+    await record_auth_event(
+        auth_events_collection,
+        event_type="password_reset_requested",
+        status="success",
+        user_id=str(user["_id"]),
+    )
 
     await email_svc.send_email(
         to=request.email,
@@ -334,13 +455,14 @@ async def request_password_reset_service(request: RequestPasswordReset, email_sv
 
 async def reset_password_service(request: PasswordResetRequest):
     redis_client = await get_redis_client()
-    user = await users_collection.find_one({"email": request.email})
+    normalized_email = normalize_email(request.email)
+    user = await users_collection.find_one({"email_normalized": normalized_email})
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     if request.reset_method == "otp":
-        stored_otp = await redis_client.get(f"otp:{request.email}")
+        stored_otp = await redis_client.get(f"password_reset_otp:{normalized_email}")
         if stored_otp is None:
             raise HTTPException(status_code=400, detail="OTP expired or not found")
         if request.otp != stored_otp:  
@@ -349,77 +471,76 @@ async def reset_password_service(request: PasswordResetRequest):
     elif request.reset_method == "token":
         if not request.token:
             raise HTTPException(status_code=400, detail="Token is required")
-        stored_token = await redis_client.get(f"token:{request.email}")
+        stored_token = await redis_client.get(f"password_reset_token:{normalized_email}")
         if not stored_token or not hmac.compare_digest(request.token, stored_token):
             raise HTTPException(status_code=400, detail="Invalid or already used reset token")
         try:
-            email_from_token = decode_verification_token(request.token)
+            email_from_token = decode_verification_token(request.token, purpose="password_reset")
         except HTTPException as e:
             raise e
-        if email_from_token != request.email:
+        if normalize_email(email_from_token) != normalized_email:
             raise HTTPException(status_code=403, detail="Token email mismatch")
 
     hashed_password = pwd_context.hash(request.new_password)
 
     
     result = await users_collection.update_one(
-        {"email": request.email},
-        {"$set": {"hashed_password": hashed_password}}
+        {"_id": user["_id"]},
+        {"$set": {"hashed_password": hashed_password, "password_changed_at": now_utc(), "updated_at": now_utc()}}
     )
 
     if result.modified_count == 0:
         raise HTTPException(status_code=500, detail="Password reset failed")
 
-    await users_collection.update_one(
-        {"email": request.email},
-        {"$unset": {
-            "refresh_token": "",
-            "refresh_token_jti": "",
-            "refresh_token_expires_at": "",
-        }},
+    await revoke_user_sessions(
+        get_user_sessions_collection(),
+        user_id=str(user["_id"]),
+        revoke_reason="password_reset",
+    )
+    await record_auth_event(
+        get_auth_events_collection(),
+        event_type="password_reset_completed",
+        status="success",
+        user_id=str(user["_id"]),
     )
 
    
-    await redis_client.delete(f"otp:{request.email}")
-    await redis_client.delete(f"token:{request.email}")
+    await redis_client.delete(f"password_reset_otp:{normalized_email}")
+    await redis_client.delete(f"password_reset_token:{normalized_email}")
 
     return PasswordResetResponse(message="Password reset successful", success=True)
 
 async def logout_service(
     token: str,
     users_collection: AsyncIOMotorCollection,
-    blacklist_collection=Depends(get_blacklisted_tokens_collection),
 ):
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-        jti = payload.get("jti")
-        exp = payload.get("exp")
         user_id = payload.get("sub")
+        session_id = payload.get("sid")
 
-        if not jti or not exp:
-            raise HTTPException(status_code=400, detail="Invalid token or missing JTI/exp")
-
-        expires_at = datetime.fromtimestamp(exp, tz=timezone.utc)
-
-        try:
-            await blacklist_collection.insert_one({
-                "jti": jti,
-                "expires_at": expires_at
-            })
-        except DuplicateKeyError:
-            # Already blacklisted; treat as idempotent logout.
-            pass
+        if not user_id:
+            raise HTTPException(status_code=400, detail="Invalid token or missing subject")
 
         if user_id:
-            await users_collection.update_one(
-                {"_id": ObjectId(user_id)},
-                {
-                    "$unset": {
-                        "refresh_token": "",
-                        "refresh_token_jti": "",
-                        "refresh_token_expires_at": "",
-                    }
-                },
+            if session_id:
+                await revoke_user_session(
+                    get_user_sessions_collection(),
+                    session_id=session_id,
+                    revoke_reason="logout",
+                )
+            else:
+                await revoke_user_sessions(
+                    get_user_sessions_collection(),
+                    user_id=user_id,
+                    revoke_reason="logout_legacy_token",
+                )
+            await record_auth_event(
+                get_auth_events_collection(),
+                event_type="logout",
+                status="success",
+                user_id=user_id,
+                metadata={"session_id": session_id},
             )
 
         return {"message": "Logged out successfully"}
@@ -428,183 +549,3 @@ async def logout_service(
          raise HTTPException(status_code=401, detail="Invalid token or expired token")
     except Exception as e:
          raise HTTPException(status_code=500, detail="An error occurred during logout") from e
-
-def get_user_profile_service(current_user: UserOut) -> dict:
-    """Return serialized user profile"""
-    return {
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "full_name": current_user.full_name,
-        "bio": current_user.bio,
-        "location": current_user.location,
-        "website": current_user.website,
-        "avatar_color": current_user.avatar_color,
-        "role": current_user.role,
-        "is_active": current_user.is_active,
-        "is_verified": current_user.is_verified,
-        "created_at": current_user.created_at,
-        "updated_at": current_user.updated_at,
-    }
-
-
-async def update_user_profile_service(
-    profile_data: UpdateProfileRequest,
-    current_user: UserOut,
-    users_collection  
-) -> UpdateProfileResponse:
-    try:
-        update_data = {}
-
-        if profile_data.full_name is not None:
-            update_data["full_name"] = profile_data.full_name
-        if profile_data.bio is not None:
-            update_data["bio"] = profile_data.bio
-        if profile_data.location is not None:
-            update_data["location"] = profile_data.location
-        if profile_data.website is not None:
-            update_data["website"] = profile_data.website
-        if profile_data.avatar_color is not None:
-            update_data["avatar_color"] = profile_data.avatar_color
-
-        update_data["updated_at"] = datetime.now(timezone.utc)
-
-        try:
-            user_object_id = ObjectId(current_user.id)
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid user ID format: {str(e)}"
-            )
-
-        result = await users_collection.update_one(
-            {"_id": user_object_id},
-            {"$set": update_data}
-        )
-
-        if result.modified_count == 0:
-            user_exists = await users_collection.find_one({"_id": user_object_id})
-            if not user_exists:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found"
-                )
-
-        updated_user = await users_collection.find_one({"_id": user_object_id})
-        
-        if not updated_user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found after update"
-            )
-
-        created_at = updated_user.get("created_at")
-        if isinstance(created_at, datetime):
-            created_at = created_at.isoformat()
-
-        updated_at_value = updated_user.get("updated_at")
-        if isinstance(updated_at_value, datetime):
-            updated_at_value = updated_at_value.isoformat()
-
-        user_out = UserOut(
-            id=str(updated_user["_id"]),
-            username=updated_user["username"],
-            email=updated_user["email"],
-            full_name=updated_user.get("full_name"),
-            bio=updated_user.get("bio"),
-            location=updated_user.get("location"),
-            website=updated_user.get("website"),
-            avatar_color=updated_user.get("avatar_color", "#143E6F"),
-            is_active=updated_user.get("is_active", True),
-            is_verified=updated_user.get("is_verified", False),
-            created_at=created_at,
-            updated_at=updated_at_value,
-        )
-
-        return UpdateProfileResponse(
-            message="Profile updated successfully",
-            user=user_out
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update profile: {str(e)}"
-            )
-
-
-async def request_email_change_service(
-    new_email: str,
-    current_user: UserOut,
-    users_collection: AsyncIOMotorCollection,
-    email_svc: EmailService,
-) -> MessageResponse:
-    if new_email.lower() == current_user.email.lower():
-        raise HTTPException(status_code=400, detail="New email must be different.")
-
-    existing_user = await users_collection.find_one({"email": new_email})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already in use.")
-
-    redis_client = await get_redis_client()
-    otp = generate_otp()
-    token = generate_verification_token(new_email)
-
-    payload = json.dumps({"new_email": new_email, "otp": otp, "token": token})
-    await redis_client.setex(
-        f"email_change:{current_user.id}",
-        timedelta(minutes=10),
-        payload,
-    )
-
-    await email_svc.send_email(
-        to=new_email,
-        template_id="verification",
-        template_vars={"code": otp, "token": token},
-        purpose="verification",
-        priority="default",
-    )
-
-    return MessageResponse(message="Verification code sent to new email.")
-
-
-async def verify_email_change_service(
-    otp: str,
-    current_user: UserOut,
-    users_collection: AsyncIOMotorCollection,
-) -> MessageResponse:
-    redis_client = await get_redis_client()
-    stored = await redis_client.get(f"email_change:{current_user.id}")
-    if not stored:
-        raise HTTPException(status_code=400, detail="No pending email change request.")
-
-    data = json.loads(stored)
-    stored_otp = data.get("otp")
-    new_email = data.get("new_email")
-
-    if otp != stored_otp:
-        raise HTTPException(status_code=400, detail="Invalid verification code.")
-
-    existing_user = await users_collection.find_one({"email": new_email})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already in use.")
-
-    await users_collection.update_one(
-        {"_id": ObjectId(current_user.id)},
-        {"$set": {"email": new_email, "is_verified": True, "updated_at": datetime.now(timezone.utc)}},
-    )
-
-    await redis_client.delete(f"email_change:{current_user.id}")
-    return MessageResponse(message="Email updated successfully.")
-
-
-async def delete_account_service(
-    current_user: UserOut,
-    users_collection: AsyncIOMotorCollection,
-) -> MessageResponse:
-    result = await delete_user(users_collection, current_user.id)
-    if result.delete_count == 0:
-        raise HTTPException(status_code=404, detail="User not found.")
-    return MessageResponse(message="Account deleted successfully.")
